@@ -90,6 +90,10 @@ function LeadsInput({ campaignKey, value, onSave }) {
 // Replace your existing CampaignRow and ProjectSection with these.
 // getDriveEmbedUrl and all other helpers/constants stay the same.
 
+// ── Drop-in replacements for CampaignCard + ProjectSection ────────────────
+// Replace your existing CampaignRow and ProjectSection with these.
+// All other constants/helpers in App.jsx stay the same.
+
 function getDriveEmbedUrl(url) {
   if (!url) return null;
   const match = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
@@ -98,136 +102,198 @@ function getDriveEmbedUrl(url) {
 
 function CampaignCard({ campaign, leads, onSaveLead, accentColor }) {
   const [open, setOpen] = useState(false);
+  const [lightbox, setLightbox] = useState(false);
   const key      = campaign["Campaign Name"];
   const embedUrl = getDriveEmbedUrl(campaign.Creative);
 
   return (
-    <div style={{
-      background: "#fff",
-      borderRadius: 14,
-      border: "1px solid #e8ecf0",
-      boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
-      overflow: "hidden",
-      display: "flex",
-      flexDirection: "column",
-      transition: "box-shadow 0.18s",
-    }}
-      onMouseEnter={e => (e.currentTarget.style.boxShadow = "0 6px 24px rgba(0,0,0,0.11)")}
-      onMouseLeave={e => (e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.05)")}
-    >
-
-      {/* ── Creative thumbnail ── */}
-      <div style={{
-        position: "relative",
-        aspectRatio: "16/9",
-        background: "#f1f3f6",
-        overflow: "hidden",
-        flexShrink: 0,
-      }}>
-        {embedUrl ? (
-          <iframe
-            src={embedUrl}
-            title="Creative preview"
-            style={{ width: "100%", height: "100%", border: "none", display: "block", pointerEvents: "none" }}
-            allow="autoplay"
-            loading="lazy"
-          />
-        ) : (
-          <div style={{
-            width: "100%", height: "100%",
+    <>
+      {/* ── Lightbox modal ── */}
+      {lightbox && (
+        <div
+          onClick={() => setLightbox(false)}
+          style={{
+            position: "fixed", inset: 0, zIndex: 1000,
+            background: "rgba(0,0,0,0.82)",
             display: "flex", alignItems: "center", justifyContent: "center",
-            color: "#ccc", fontSize: 13, flexDirection: "column", gap: 6,
-          }}>
-            <span style={{ fontSize: 28 }}>🖼️</span>
-            No creative
-          </div>
-        )}
-
-        {/* Status badge overlay */}
-        <div style={{ position: "absolute", top: 10, left: 10 }}>
-          <StatusBadge status={campaign.Status} />
-        </div>
-
-        {/* Channel badge overlay */}
-        <div style={{ position: "absolute", top: 10, right: 10 }}>
-          <ChannelBadge channel={campaign.Channel} />
-        </div>
-      </div>
-
-      {/* ── Card body ── */}
-      <div style={{ padding: "14px 16px", flex: 1, display: "flex", flexDirection: "column", gap: 12 }}>
-
-        {/* Campaign name */}
-        <div style={{
-          fontSize: 13, fontWeight: 600, color: "#1a1a2e",
-          lineHeight: 1.4,
-          display: "-webkit-box", WebkitLineClamp: 2,
-          WebkitBoxOrient: "vertical", overflow: "hidden",
-        }}>
-          {key}
-        </div>
-
-        {/* Leads stat */}
-        <div style={{
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          background: "#f7f9fc", borderRadius: 8, padding: "8px 12px",
-        }}>
-          <span style={{ fontSize: 11, color: "#aaa", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>Engagements</span>
-          <span style={{ fontSize: 20, fontWeight: 700, color: accentColor }}>
-            {leads[key] ? parseInt(leads[key]).toLocaleString() : "—"}
-          </span>
-        </div>
-
-        {/* Actions row */}
-        <div style={{ display: "flex", gap: 8, marginTop: "auto" }}>
-          {campaign.Creative && (
-            <a
-              href={campaign.Creative}
-              target="_blank"
-              rel="noreferrer"
-              style={{
-                flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
-                gap: 5, padding: "7px 10px", borderRadius: 8,
-                border: `1.5px solid ${accentColor}`, color: accentColor,
-                fontSize: 12, fontWeight: 600, textDecoration: "none",
-                transition: "background 0.15s",
-              }}
-              onMouseEnter={e => (e.currentTarget.style.background = "#eef3f9")}
-              onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
-            >
-              🔗 View on Drive
-            </a>
-          )}
-          <button
-            onClick={() => setOpen(!open)}
+            animation: "fadeIn 0.18s ease",
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
             style={{
-              flex: 1, padding: "7px 10px", borderRadius: 8,
-              background: open ? accentColor : "transparent",
-              color: open ? "#fff" : accentColor,
-              border: `1.5px solid ${accentColor}`,
-              fontSize: 12, fontWeight: 600, cursor: "pointer",
-              transition: "all 0.15s",
+              position: "relative",
+              width: "min(90vw, 960px)",
+              height: "min(85vh, 700px)",
+              borderRadius: 16,
+              overflow: "hidden",
+              background: "#000",
+              boxShadow: "0 24px 80px rgba(0,0,0,0.6)",
             }}
           >
-            {open ? "▲ Close" : "✏️ Add engagements"}
-          </button>
+            <iframe
+              src={embedUrl}
+              title="Creative fullscreen"
+              style={{ width: "100%", height: "100%", border: "none", display: "block" }}
+              allow="autoplay"
+            />
+            {/* Close button */}
+            <button
+              onClick={() => setLightbox(false)}
+              style={{
+                position: "absolute", top: 14, right: 14,
+                width: 36, height: 36, borderRadius: "50%",
+                background: "rgba(0,0,0,0.6)", color: "#fff",
+                border: "1.5px solid rgba(255,255,255,0.3)",
+                fontSize: 20, cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}
+            >×</button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Card ── */}
+      <div
+        style={{
+          background: "#fff", borderRadius: 14,
+          border: "1px solid #e8ecf0",
+          boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+          overflow: "hidden", display: "flex", flexDirection: "column",
+          transition: "box-shadow 0.18s",
+        }}
+        onMouseEnter={e => (e.currentTarget.style.boxShadow = "0 6px 24px rgba(0,0,0,0.11)")}
+        onMouseLeave={e => (e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.05)")}
+      >
+        {/* ── Creative thumbnail ── */}
+        <div style={{
+          position: "relative", aspectRatio: "16/9",
+          background: "#f1f3f6", overflow: "hidden", flexShrink: 0,
+        }}>
+          {embedUrl ? (
+            <iframe
+              src={embedUrl}
+              title="Creative preview"
+              style={{ width: "100%", height: "100%", border: "none", display: "block", pointerEvents: "none" }}
+              allow="autoplay"
+              loading="lazy"
+            />
+          ) : (
+            <div style={{
+              width: "100%", height: "100%",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              color: "#ccc", fontSize: 13, flexDirection: "column", gap: 6,
+            }}>
+              <span style={{ fontSize: 28 }}>🖼️</span>
+              No creative
+            </div>
+          )}
+
+          {/* Status badge — top left */}
+          <div style={{ position: "absolute", top: 10, left: 10 }}>
+            <StatusBadge status={campaign.Status} />
+          </div>
+
+          {/* Channel badge — top right */}
+          <div style={{ position: "absolute", top: 10, right: 10 }}>
+            <ChannelBadge channel={campaign.Channel} />
+          </div>
+
+          {/* Expand button — bottom right, only when embed exists */}
+          {embedUrl && (
+            <button
+              onClick={() => setLightbox(true)}
+              title="Expand preview"
+              style={{
+                position: "absolute", bottom: 10, right: 10,
+                width: 30, height: 30, borderRadius: 7,
+                background: "rgba(0,0,0,0.55)", color: "#fff",
+                border: "1.5px solid rgba(255,255,255,0.35)",
+                fontSize: 15, cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                backdropFilter: "blur(4px)",
+                transition: "background 0.15s",
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = "rgba(0,0,0,0.85)")}
+              onMouseLeave={e => (e.currentTarget.style.background = "rgba(0,0,0,0.55)")}
+            >⛶</button>
+          )}
         </div>
 
-        {/* ── Expandable lead input ── */}
-        {open && (
+        {/* ── Card body ── */}
+        <div style={{ padding: "14px 16px", flex: 1, display: "flex", flexDirection: "column", gap: 12 }}>
+
+          {/* Campaign name */}
           <div style={{
-            borderTop: "1px solid #f0f0f0", paddingTop: 12,
-            animation: "fadeIn 0.18s ease",
+            fontSize: 13, fontWeight: 600, color: "#1a1a2e", lineHeight: 1.4,
+            display: "-webkit-box", WebkitLineClamp: 2,
+            WebkitBoxOrient: "vertical", overflow: "hidden",
           }}>
-            <p style={{
-              fontSize: 11, color: "#999", fontWeight: 600, marginBottom: 8,
-              textTransform: "uppercase", letterSpacing: 0.6,
-            }}>Engagement count</p>
-            <LeadsInput campaignKey={key} value={leads[key]} onSave={onSaveLead} />
+            {key}
           </div>
-        )}
+
+          {/* Engagements stat */}
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            background: "#f7f9fc", borderRadius: 8, padding: "8px 12px",
+          }}>
+            <span style={{ fontSize: 11, color: "#aaa", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>Engagements</span>
+            <span style={{ fontSize: 20, fontWeight: 700, color: accentColor }}>
+              {leads[key] ? parseInt(leads[key]).toLocaleString() : "—"}
+            </span>
+          </div>
+
+          {/* Actions row */}
+          <div style={{ display: "flex", gap: 8, marginTop: "auto" }}>
+            {campaign.Creative && (
+              <a
+                href={campaign.Creative}
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
+                  gap: 5, padding: "7px 10px", borderRadius: 8,
+                  border: `1.5px solid ${accentColor}`, color: accentColor,
+                  fontSize: 12, fontWeight: 600, textDecoration: "none",
+                  transition: "background 0.15s",
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = "#eef3f9")}
+                onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+              >
+                🔗 View on Drive
+              </a>
+            )}
+            <button
+              onClick={() => setOpen(!open)}
+              style={{
+                flex: 1, padding: "7px 10px", borderRadius: 8,
+                background: open ? accentColor : "transparent",
+                color: open ? "#fff" : accentColor,
+                border: `1.5px solid ${accentColor}`,
+                fontSize: 12, fontWeight: 600, cursor: "pointer",
+                transition: "all 0.15s",
+              }}
+            >
+              {open ? "▲ Close" : "✏️ Add engagements"}
+            </button>
+          </div>
+
+          {/* Expandable engagement input */}
+          {open && (
+            <div style={{
+              borderTop: "1px solid #f0f0f0", paddingTop: 12,
+              animation: "fadeIn 0.18s ease",
+            }}>
+              <p style={{
+                fontSize: 11, color: "#999", fontWeight: 600, marginBottom: 8,
+                textTransform: "uppercase", letterSpacing: 0.6,
+              }}>Engagement count</p>
+              <LeadsInput campaignKey={key} value={leads[key]} onSave={onSaveLead} />
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -236,7 +302,7 @@ function ProjectSection({ projectName, groups, leads, onSaveLead }) {
   const color = PROJECT_COLORS[projectName] || NAVY;
   const icon  = PROJECT_ICONS[projectName]  || "📋";
   const allCampaigns = Object.values(groups).flat();
-  const totalLeads = allCampaigns.reduce((s, c) => s + (parseInt(leads[c["Campaign Name"]]) || 0), 0);
+  const totalEngagements = allCampaigns.reduce((s, c) => s + (parseInt(leads[c["Campaign Name"]]) || 0), 0);
 
   return (
     <div style={{
@@ -245,6 +311,102 @@ function ProjectSection({ projectName, groups, leads, onSaveLead }) {
       boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
     }}>
 
+      {/* ── Project header ── */}
+      <div
+        onClick={() => setExpanded(!expanded)}
+        style={{
+          background: color, color: "#fff", padding: "20px 24px",
+          cursor: "pointer", display: "flex", alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <div style={{
+            background: "rgba(255,255,255,0.18)", borderRadius: 10,
+            padding: "10px 12px", fontSize: 22, lineHeight: 1,
+          }}>{icon}</div>
+          <div>
+            <div style={{ fontSize: 22, fontWeight: 700 }}>{projectName}</div>
+            <div style={{ fontSize: 13, opacity: 0.8, marginTop: 2 }}>
+              {Object.keys(groups).length} groups · {allCampaigns.length} campaigns
+            </div>
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <div style={{ textAlign: "right" }}>
+            <div style={{ fontSize: 32, fontWeight: 700 }}>
+              {totalEngagements > 0 ? totalEngagements.toLocaleString() : allCampaigns.length}
+            </div>
+            <div style={{ fontSize: 12, opacity: 0.8 }}>
+              {totalEngagements > 0 ? "total engagements" : "total campaigns"}
+            </div>
+          </div>
+          <span style={{
+            fontSize: 18, opacity: 0.7,
+            transform: expanded ? "rotate(90deg)" : "none",
+            display: "inline-block", transition: "transform 0.2s",
+          }}>▶</span>
+        </div>
+      </div>
+
+      {/* ── Groups + campaign grid ── */}
+      {expanded && Object.entries(groups).map(([groupName, campaigns]) => {
+        const gEngagements = campaigns.reduce((s, c) => s + (parseInt(leads[c["Campaign Name"]]) || 0), 0);
+
+        return (
+          <div key={groupName} style={{ padding: "20px 24px", borderBottom: "1px solid #f0f0f0" }}>
+
+            {/* Group header */}
+            <div style={{
+              display: "flex", alignItems: "center",
+              justifyContent: "space-between", marginBottom: 16,
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ width: 8, height: 8, borderRadius: "50%", background: color }} />
+                <span style={{ fontSize: 14, fontWeight: 700, color: "#333" }}>{groupName}</span>
+                <span style={{
+                  fontSize: 11, color: "#fff", background: color,
+                  borderRadius: 20, padding: "2px 8px", fontWeight: 600,
+                }}>
+                  {campaigns.length}
+                </span>
+              </div>
+              {gEngagements > 0 && (
+                <span style={{ fontSize: 13, color: color, fontWeight: 700 }}>
+                  {gEngagements.toLocaleString()} engagements
+                </span>
+              )}
+            </div>
+
+            {/* Campaign grid */}
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
+              gap: 16,
+            }}>
+              {campaigns.map(c => (
+                <CampaignCard
+                  key={c["Campaign Name"]}
+                  campaign={c}
+                  leads={leads}
+                  onSaveLead={onSaveLead}
+                  accentColor={color}
+                />
+              ))}
+            </div>
+          </div>
+        );
+      })}
+
+      <style>{`
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(-4px); }
+          to   { opacity: 1; transform: none; }
+        }
+      `}</style>
+    </div>
+  );
+}
       {/* ── Project header ── */}
       <div
         onClick={() => setExpanded(!expanded)}
