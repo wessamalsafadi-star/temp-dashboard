@@ -30,7 +30,7 @@ function groupCampaigns(campaigns) {
     const proj = c.Project || "Unknown";
     if (!projects[proj]) projects[proj] = {};
     const name = c["Campaign Name"] || "";
-    const m = name.match(/^([^|–\-]+?)[\s]*[\|–\-]/);
+const m = name.match(/^([^|–-]+?)[\s]*[|–-]/);
     const group = m ? m[1].trim() : proj;
     if (!projects[proj][group]) projects[proj][group] = [];
     projects[proj][group].push(c);
