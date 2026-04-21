@@ -30,7 +30,7 @@ function groupCampaigns(campaigns) {
     const proj = c.Project || "Unknown";
     if (!projects[proj]) projects[proj] = {};
     const name = c["Campaign Name"] || "";
-const m = name.match(/^([^|–-]+?)[\s]*[|–-]/);
+    const m = name.match(/^([^|–-]+?)[\s]*[|–-]/);
     const group = m ? m[1].trim() : proj;
     if (!projects[proj][group]) projects[proj][group] = [];
     projects[proj][group].push(c);
@@ -91,7 +91,7 @@ function CampaignCard({ campaign, leads, onSaveLead, accentColor }) {
   const key = campaign["Campaign Name"];
   const embedUrl = getDriveEmbedUrl(campaign.Creative);
 
-  // ✅ FIX 1: Use local leads value, fall back to campaign.Engagement from webhook
+  // Use local leads value, fall back to campaign.Engagement from webhook
   const displayEngagement = leads[key] !== undefined && leads[key] !== ""
     ? parseInt(leads[key])
     : campaign.Engagement ?? null;
@@ -135,7 +135,7 @@ function CampaignCard({ campaign, leads, onSaveLead, accentColor }) {
               </span>
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                 {campaign.Creative && (
-                  
+                  <a
                     href={campaign.Creative}
                     target="_blank"
                     rel="noreferrer"
@@ -232,7 +232,7 @@ function CampaignCard({ campaign, leads, onSaveLead, accentColor }) {
             <ChannelBadge channel={campaign.Channel} />
           </div>
 
-          {/* ✅ FIX 2: Expand button always visible (not just when embedUrl exists) */}
+          {/* Expand button — always visible */}
           <button
             onClick={() => setLightbox(true)}
             title="Expand preview"
@@ -263,7 +263,7 @@ function CampaignCard({ campaign, leads, onSaveLead, accentColor }) {
             {key}
           </div>
 
-          {/* Engagements stat — ✅ FIX 1 applied here */}
+          {/* Engagements stat */}
           <div style={{
             display: "flex", alignItems: "center", justifyContent: "space-between",
             background: "#f7f9fc", borderRadius: 8, padding: "8px 12px",
@@ -277,7 +277,7 @@ function CampaignCard({ campaign, leads, onSaveLead, accentColor }) {
           {/* Actions row */}
           <div style={{ display: "flex", gap: 8, marginTop: "auto" }}>
             {campaign.Creative && (
-              
+              <a
                 href={campaign.Creative}
                 target="_blank"
                 rel="noreferrer"
@@ -319,7 +319,6 @@ function CampaignCard({ campaign, leads, onSaveLead, accentColor }) {
                 fontSize: 11, color: "#999", fontWeight: 600, marginBottom: 8,
                 textTransform: "uppercase", letterSpacing: 0.6,
               }}>Engagement count</p>
-              {/* ✅ Pass the resolved display value as starting point for the input */}
               <LeadsInput
                 campaignKey={key}
                 value={leads[key] !== undefined ? leads[key] : (campaign.Engagement ?? "")}
@@ -332,6 +331,7 @@ function CampaignCard({ campaign, leads, onSaveLead, accentColor }) {
     </>
   );
 }
+
 function ProjectSection({ projectName, groups, leads, onSaveLead }) {
   const [expanded, setExpanded] = useState(true);
   const color = PROJECT_COLORS[projectName] || NAVY;
@@ -442,98 +442,6 @@ function ProjectSection({ projectName, groups, leads, onSaveLead }) {
     </div>
   );
 }
-      {/* ── Project header ── */}
-      <div
-        onClick={() => setExpanded(!expanded)}
-        style={{
-          background: color, color: "#fff", padding: "20px 24px",
-          cursor: "pointer", display: "flex", alignItems: "center",
-          justifyContent: "space-between",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <div style={{
-            background: "rgba(255,255,255,0.18)", borderRadius: 10,
-            padding: "10px 12px", fontSize: 22, lineHeight: 1,
-          }}>{icon}</div>
-          <div>
-            <div style={{ fontSize: 22, fontWeight: 700 }}>{projectName}</div>
-            <div style={{ fontSize: 13, opacity: 0.8, marginTop: 2 }}>
-              {Object.keys(groups).length} groups · {allCampaigns.length} campaigns
-            </div>
-          </div>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <div style={{ textAlign: "right" }}>
-            <div style={{ fontSize: 32, fontWeight: 700 }}>
-              {totalLeads > 0 ? totalLeads.toLocaleString() : allCampaigns.length}
-            </div>
-            <div style={{ fontSize: 12, opacity: 0.8 }}>
-              {totalLeads > 0 ? "total engagements" : "total campaigns"}
-            </div>
-          </div>
-          <span style={{
-            fontSize: 18, opacity: 0.7,
-            transform: expanded ? "rotate(90deg)" : "none",
-            display: "inline-block", transition: "transform 0.2s",
-          }}>▶</span>
-        </div>
-      </div>
-
-      {/* ── Groups + campaign grid ── */}
-      {expanded && Object.entries(groups).map(([groupName, campaigns]) => {
-        const gLeads = campaigns.reduce((s, c) => s + (parseInt(leads[c["Campaign Name"]]) || 0), 0);
-
-        return (
-          <div key={groupName} style={{ padding: "20px 24px", borderBottom: "1px solid #f0f0f0" }}>
-
-            {/* Group header */}
-            <div style={{
-              display: "flex", alignItems: "center",
-              justifyContent: "space-between", marginBottom: 16,
-            }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <div style={{ width: 8, height: 8, borderRadius: "50%", background: color }} />
-                <span style={{ fontSize: 14, fontWeight: 700, color: "#333" }}>{groupName}</span>
-                <span style={{
-                  fontSize: 11, color: "#fff", background: color,
-                  borderRadius: 20, padding: "2px 8px", fontWeight: 600,
-                }}>
-                  {campaigns.length}
-                </span>
-              </div>
-              {gLeads > 0 && (
-                <span style={{ fontSize: 13, color: color, fontWeight: 700 }}>
-                  {gLeads.toLocaleString()} leads
-                </span>
-              )}
-            </div>
-
-            {/* Campaign grid */}
-            <div style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
-              gap: 16,
-            }}>
-              {campaigns.map(c => (
-                <CampaignCard
-                  key={c["Campaign Name"]}
-                  campaign={c}
-                  leads={leads}
-                  onSaveLead={onSaveLead}
-                  accentColor={color}
-                />
-              ))}
-            </div>
-          </div>
-        );
-      })}
-
-      <style>{`@keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }`}</style>
-    </div>
-  );
-}
-
 
 function useCountdown(nextSyncTime) {
   const [label, setLabel] = useState("");
