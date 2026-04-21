@@ -66,7 +66,7 @@ function LeadsInput({ campaignKey, value, onSave }) {
       <input
         type="number" min={0} value={val}
         onChange={(e) => { setVal(e.target.value); setSaved(false); }}
-        placeholder="Enter leads..."
+        placeholder="Enter engagements..."
         style={{ width: 120, padding: "6px 10px", borderRadius: 8, border: "1px solid #d0d5dd", fontSize: 14 }}
       />
       <button
@@ -79,21 +79,6 @@ function LeadsInput({ campaignKey, value, onSave }) {
   );
 }
 
-// ── Drop-in replacement for CampaignRow (and the helper) ──────────────────
-// Everything else in your App.jsx stays the same.
-
-// ── Drop-in replacements for CampaignCard + ProjectSection ────────────────
-// Replace your existing CampaignRow and ProjectSection with these.
-// getDriveEmbedUrl and all other helpers/constants stay the same.
-
-// ── Drop-in replacements for CampaignCard + ProjectSection ────────────────
-// Replace your existing CampaignRow and ProjectSection with these.
-// getDriveEmbedUrl and all other helpers/constants stay the same.
-
-// ── Drop-in replacements for CampaignCard + ProjectSection ────────────────
-// Replace your existing CampaignRow and ProjectSection with these.
-// All other constants/helpers in App.jsx stay the same.
-
 function getDriveEmbedUrl(url) {
   if (!url) return null;
   const match = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
@@ -103,8 +88,13 @@ function getDriveEmbedUrl(url) {
 function CampaignCard({ campaign, leads, onSaveLead, accentColor }) {
   const [open, setOpen] = useState(false);
   const [lightbox, setLightbox] = useState(false);
-  const key      = campaign["Campaign Name"];
+  const key = campaign["Campaign Name"];
   const embedUrl = getDriveEmbedUrl(campaign.Creative);
+
+  // ✅ FIX 1: Use local leads value, fall back to campaign.Engagement from webhook
+  const displayEngagement = leads[key] !== undefined && leads[key] !== ""
+    ? parseInt(leads[key])
+    : campaign.Engagement ?? null;
 
   return (
     <>
@@ -127,28 +117,71 @@ function CampaignCard({ campaign, leads, onSaveLead, accentColor }) {
               height: "min(85vh, 700px)",
               borderRadius: 16,
               overflow: "hidden",
-              background: "#000",
+              background: "#111",
               boxShadow: "0 24px 80px rgba(0,0,0,0.6)",
+              display: "flex",
+              flexDirection: "column",
             }}
           >
-            <iframe
-              src={embedUrl}
-              title="Creative fullscreen"
-              style={{ width: "100%", height: "100%", border: "none", display: "block" }}
-              allow="autoplay"
-            />
-            {/* Close button */}
-            <button
-              onClick={() => setLightbox(false)}
-              style={{
-                position: "absolute", top: 14, right: 14,
-                width: 36, height: 36, borderRadius: "50%",
-                background: "rgba(0,0,0,0.6)", color: "#fff",
-                border: "1.5px solid rgba(255,255,255,0.3)",
-                fontSize: 20, cursor: "pointer",
-                display: "flex", alignItems: "center", justifyContent: "center",
-              }}
-            >×</button>
+            {/* Header bar with title + open-in-drive link */}
+            <div style={{
+              padding: "12px 16px",
+              background: "#1a1a2e",
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              flexShrink: 0,
+            }}>
+              <span style={{ color: "#fff", fontSize: 13, fontWeight: 600, opacity: 0.9, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "70%" }}>
+                {key}
+              </span>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                {campaign.Creative && (
+                  
+                    href={campaign.Creative}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{
+                      padding: "5px 12px", borderRadius: 7,
+                      background: "rgba(255,255,255,0.12)", color: "#fff",
+                      fontSize: 12, fontWeight: 600, textDecoration: "none",
+                      border: "1px solid rgba(255,255,255,0.2)",
+                    }}
+                  >
+                    🔗 Open in Drive
+                  </a>
+                )}
+                <button
+                  onClick={() => setLightbox(false)}
+                  style={{
+                    width: 32, height: 32, borderRadius: "50%",
+                    background: "rgba(255,255,255,0.15)", color: "#fff",
+                    border: "1.5px solid rgba(255,255,255,0.3)",
+                    fontSize: 18, cursor: "pointer",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}
+                >×</button>
+              </div>
+            </div>
+
+            {embedUrl ? (
+              <iframe
+                src={embedUrl}
+                title="Creative fullscreen"
+                style={{ flex: 1, border: "none", display: "block", background: "#000" }}
+                allow="autoplay"
+              />
+            ) : (
+              <div style={{
+                flex: 1, display: "flex", flexDirection: "column",
+                alignItems: "center", justifyContent: "center", gap: 12, color: "#fff",
+              }}>
+                <span style={{ fontSize: 48 }}>🖼️</span>
+                <p style={{ opacity: 0.6, margin: 0 }}>No preview available</p>
+                {campaign.Creative && (
+                  <a href={campaign.Creative} target="_blank" rel="noreferrer"
+                    style={{ color: "#7eb8f7", fontSize: 14 }}>Open in Drive →</a>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -199,25 +232,23 @@ function CampaignCard({ campaign, leads, onSaveLead, accentColor }) {
             <ChannelBadge channel={campaign.Channel} />
           </div>
 
-          {/* Expand button — bottom right, only when embed exists */}
-          {embedUrl && (
-            <button
-              onClick={() => setLightbox(true)}
-              title="Expand preview"
-              style={{
-                position: "absolute", bottom: 10, right: 10,
-                width: 30, height: 30, borderRadius: 7,
-                background: "rgba(0,0,0,0.55)", color: "#fff",
-                border: "1.5px solid rgba(255,255,255,0.35)",
-                fontSize: 15, cursor: "pointer",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                backdropFilter: "blur(4px)",
-                transition: "background 0.15s",
-              }}
-              onMouseEnter={e => (e.currentTarget.style.background = "rgba(0,0,0,0.85)")}
-              onMouseLeave={e => (e.currentTarget.style.background = "rgba(0,0,0,0.55)")}
-            >⛶</button>
-          )}
+          {/* ✅ FIX 2: Expand button always visible (not just when embedUrl exists) */}
+          <button
+            onClick={() => setLightbox(true)}
+            title="Expand preview"
+            style={{
+              position: "absolute", bottom: 10, right: 10,
+              width: 30, height: 30, borderRadius: 7,
+              background: "rgba(0,0,0,0.55)", color: "#fff",
+              border: "1.5px solid rgba(255,255,255,0.35)",
+              fontSize: 15, cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              backdropFilter: "blur(4px)",
+              transition: "background 0.15s",
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = "rgba(0,0,0,0.85)")}
+            onMouseLeave={e => (e.currentTarget.style.background = "rgba(0,0,0,0.55)")}
+          >⛶</button>
         </div>
 
         {/* ── Card body ── */}
@@ -232,21 +263,21 @@ function CampaignCard({ campaign, leads, onSaveLead, accentColor }) {
             {key}
           </div>
 
-          {/* Engagements stat */}
+          {/* Engagements stat — ✅ FIX 1 applied here */}
           <div style={{
             display: "flex", alignItems: "center", justifyContent: "space-between",
             background: "#f7f9fc", borderRadius: 8, padding: "8px 12px",
           }}>
             <span style={{ fontSize: 11, color: "#aaa", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>Engagements</span>
             <span style={{ fontSize: 20, fontWeight: 700, color: accentColor }}>
-              {leads[key] ? parseInt(leads[key]).toLocaleString() : "—"}
+              {displayEngagement !== null ? displayEngagement.toLocaleString() : "—"}
             </span>
           </div>
 
           {/* Actions row */}
           <div style={{ display: "flex", gap: 8, marginTop: "auto" }}>
             {campaign.Creative && (
-              <a
+              
                 href={campaign.Creative}
                 target="_blank"
                 rel="noreferrer"
@@ -288,7 +319,12 @@ function CampaignCard({ campaign, leads, onSaveLead, accentColor }) {
                 fontSize: 11, color: "#999", fontWeight: 600, marginBottom: 8,
                 textTransform: "uppercase", letterSpacing: 0.6,
               }}>Engagement count</p>
-              <LeadsInput campaignKey={key} value={leads[key]} onSave={onSaveLead} />
+              {/* ✅ Pass the resolved display value as starting point for the input */}
+              <LeadsInput
+                campaignKey={key}
+                value={leads[key] !== undefined ? leads[key] : (campaign.Engagement ?? "")}
+                onSave={onSaveLead}
+              />
             </div>
           )}
         </div>
@@ -296,7 +332,6 @@ function CampaignCard({ campaign, leads, onSaveLead, accentColor }) {
     </>
   );
 }
-
 function ProjectSection({ projectName, groups, leads, onSaveLead }) {
   const [expanded, setExpanded] = useState(true);
   const color = PROJECT_COLORS[projectName] || NAVY;
