@@ -155,7 +155,7 @@
 }
 .cstat { text-align: right; }
 .cstat-val { display: block; font-size: 16px; font-weight: 600; letter-spacing: -0.3px; }
-.cstat-lbl { display: block; font-size: 10px; color: var(--text-3); text-transform: uppercase; letter-spacing: .4px; margin-top: 1px; }
+.cstat-lbl { display: block; font-size: 10px; color: white; text-transform: uppercase; letter-spacing: .4px; margin-top: 1px; }
 @media (max-width: 700px) {
   .cstat:nth-child(n+3) { display: none; }
 }
@@ -228,7 +228,7 @@
   background: var(--navy-3); border: 1px solid var(--border);
   border-radius: 10px; padding: 12px 16px;
 }
-.chip-label { display: block; font-size: 10px; color: var(--text-3); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; }
+.chip-label { display: block; font-size: 10px; color: white; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; }
 .chip-value { display: block; font-size: 22px; font-weight: 600; color: var(--accent-chip, var(--accent)); letter-spacing: -0.5px; }
 .chip-sub   { display: block; font-size: 10px; color: var(--text-3); margin-top: 2px; font-family: var(--mono); }
 
@@ -386,7 +386,9 @@
   width: 26px; height: 26px; border-radius: 50%;
   background: #128c7e; display: flex; align-items: center; justify-content: center;
 }
-
+.vd-kpis > div:nth-child(5){
+  display: none;
+}
 /* ── State screens ─────────────────────────────────────────────────────────── */
 .state-screen {
   display: flex; flex-direction: column; align-items: center;
