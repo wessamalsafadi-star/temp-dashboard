@@ -261,7 +261,7 @@
 .vd-tab {
   padding: 10px 20px; border: none; background: transparent;
   font-size: 13px; font-weight: 500; cursor: pointer;
-  font-family: var(--font); color: var(--text-3);
+  font-family: var(--font); color: white;
   border-bottom: 2px solid transparent;
   transition: all .15s;
 }
