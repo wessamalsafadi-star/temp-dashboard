@@ -277,7 +277,14 @@ function CampaignRow({ campaign, index }) {
         <div className="campaign-left">
           <div className="campaign-accent-bar" />
           <div>
-            <div className="campaign-name">{campaignName}</div>
+            <div className="campaign-name">
+  {campaignName}
+  {campaign.status && (
+    <span className={`status-badge status-${campaign.status}`}>
+      {campaign.status === 'live' ? '● Live' : campaign.status === 'paused' ? '⏸ Paused' : '○ Draft'}
+    </span>
+  )}
+</div>
             <div className="campaign-date">{fmtDate(dateCreated)} · {variants.length} variant{variants.length !== 1 ? 's' : ''}</div>
           </div>
         </div>
@@ -450,6 +457,7 @@ export default function App() {
   const [status,    setStatus]      = useState('loading'); // loading | success | error
   const [search,    setSearch]      = useState('');
   const [sortBy,    setSortBy]      = useState('date');
+  const [filterStatus, setFilterStatus] = useState('all');
 
   const load = useCallback(async () => {
     setStatus('loading');
@@ -479,6 +487,7 @@ export default function App() {
     if (sortBy === 'contacts') list.sort((a, b) => (b.numberOfContacts || 0) - (a.numberOfContacts || 0));
     if (sortBy === 'openrate') list.sort((a, b) => (b.openRate || 0)         - (a.openRate || 0));
     if (sortBy === 'date')     list.sort((a, b) => new Date(b.dateCreated)   - new Date(a.dateCreated));
+    if (filterStatus !== 'all') list = list.filter(c => c.status === filterStatus);
     return list;
   }, [campaigns, search, sortBy]);
 
@@ -560,6 +569,15 @@ export default function App() {
             <button key={v} className={`sort-btn ${sortBy === v ? 'active' : ''}`} onClick={() => setSortBy(v)}>{l}</button>
           ))}
         </div>
+          <div className="status-filters">
+  {[['all','All'],['live','● Live'],['paused','⏸ Paused'],['draft','○ Draft']].map(([v,l]) => (
+    <button key={v}
+      className={`sort-btn status-btn-${v} ${filterStatus === v ? 'active' : ''}`}
+      onClick={() => setFilterStatus(v)}>{l}
+    </button>
+  ))}
+</div>
+<span className="results-count">{filtered.length} / {campaigns.length} campaigns</span>
         <span className="results-count">{filtered.length} / {campaigns.length} campaigns</span>
       </div>
 
