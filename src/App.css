@@ -410,3 +410,12 @@
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: none; }
 }
+.status-filters { display: flex; gap: 6px; flex-wrap: wrap; }
+.status-btn-live.active   { background: rgba(0,212,170,.15); border-color: #00d4aa; color: #00d4aa; }
+.status-btn-paused.active { background: rgba(245,166,35,.15); border-color: #f5a623; color: #f5a623; }
+.status-btn-draft.active  { background: rgba(138,154,176,.15); border-color: #8a9ab0; color: #8a9ab0; }
+.status-btn-all.active    { background: rgba(255,255,255,.08); border-color: var(--border-2); color: var(--text-1); }
+.status-badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 999px; margin-left: 8px; vertical-align: middle; }
+.status-live   { background: rgba(0,212,170,.12); color: #00d4aa; }
+.status-paused { background: rgba(245,166,35,.12); color: #f5a623; }
+.status-draft  { background: rgba(138,154,176,.12); color: #8a9ab0; }
