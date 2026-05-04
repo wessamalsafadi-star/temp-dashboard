@@ -489,7 +489,7 @@ export default function App() {
     if (sortBy === 'date')     list.sort((a, b) => new Date(b.dateCreated)   - new Date(a.dateCreated));
     if (filterStatus !== 'all') list = list.filter(c => c.status === filterStatus);
     return list;
-  }, [campaigns, search, sortBy]);
+  }, [campaigns, search, sortBy, filterStatus]);
 
   const totals = useMemo(() => ({
     campaigns:  campaigns.length,
@@ -578,7 +578,6 @@ export default function App() {
   ))}
 </div>
 <span className="results-count">{filtered.length} / {campaigns.length} campaigns</span>
-        <span className="results-count">{filtered.length} / {campaigns.length} campaigns</span>
       </div>
 
       {/* ── Campaign list ── */}
