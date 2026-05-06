@@ -16,3 +16,16 @@ export async function fetchLatestSnapshot() {
   if (error) throw error;
   return { campaigns: data.data || [], syncedAt: data.created_at };
 }
+export async function fetchLeadsByPeriod(days) {
+  const since = new Date();
+  since.setDate(since.getDate() - days);
+
+  const { data, error } = await supabase
+    .from('leads')
+    .select('campaign, template, created_at')
+    .gte('created_at', since.toISOString())
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return data || [];
+}
