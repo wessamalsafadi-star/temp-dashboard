@@ -260,18 +260,18 @@ function VariantDetail({ variant, accentColor, onClose }) {
 }
 
 // ─── Campaign row ─────────────────────────────────────────────────────────────
-function CampaignRow({ campaign, index, periodLeadsMap, periodLeads }) {
+function CampaignRow({ campaign, index, periodLeadsMap, periodLeadsRaw }) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(null);
 
   // Build template → lead count map for this campaign's variants
   const periodLeadsByTemplate = useMemo(() => {
     const map = {};
-    (periodLeads || []).forEach(l => {
+    (periodLeadsRaw || []).forEach(l => {
       if (l.template) map[l.template] = (map[l.template] || 0) + 1;
     });
     return map;
-  }, [periodLeads]);
+  }, [periodLeadsRaw]);
 
   const {
     campaignName, dateCreated,
@@ -551,7 +551,7 @@ export default function App() {
       if (l.campaign) map[l.campaign] = (map[l.campaign] || 0) + 1;
     });
     return map;
-  }, [periodLeads]);
+  }, [periodLeadsRaw]);
 
   const filtered = useMemo(() => {
     let list = [...campaigns];
@@ -694,7 +694,7 @@ export default function App() {
           <div className="state-screen"><span>No campaigns match your search.</span></div>
         )}
         {filtered.map((c, i) => (
-          <CampaignRow key={c._id} campaign={c} index={i} periodLeadsMap={periodLeadsMap} periodLeads={periodLeads} />
+          <CampaignRow key={c._id} campaign={c} index={i} periodLeadsMap={periodLeadsMap} periodLeadsRaw={periodLeads} />
         ))}
       </div>
     </div>
