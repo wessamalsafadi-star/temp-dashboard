@@ -281,7 +281,7 @@ function CampaignRow({ campaign, index, periodLeadsMap, periodLeadsRaw }) {
 
   const convRate    = numberOfContacts ? ((numberOfLeads / numberOfContacts) * 100).toFixed(1) : 0;
   const accent      = ['#00d4aa', '#4d9fff', '#f5a623', '#a78bfa', '#ff6b6b', '#34d399'][index % 6];
-  const periodLeads = periodLeadsMap?.[campaignName] || 0;
+  const campaignPeriodLeads = periodLeadsMap?.[campaignName] || 0;
 
   return (
     <div className={`campaign-row ${open ? 'open' : ''}`} style={{ '--row-accent': accent, animationDelay: `${index * 40}ms` }}>
@@ -314,7 +314,7 @@ function CampaignRow({ campaign, index, periodLeadsMap, periodLeadsRaw }) {
             <span className="cstat-lbl">clicks</span>
           </div>
           <div className="cstat">
-            <span className="cstat-val" style={{ color: '#a78bfa' }}>{fmt(periodLeads)}</span>
+            <span className="cstat-val" style={{ color: '#a78bfa' }}>{fmt(campaignPeriodLeads)}</span>
             <span className="cstat-lbl">period leads</span>
             <span className="cstat-sub">{fmt(numberOfLeads)} all-time</span>
           </div>
@@ -551,7 +551,7 @@ export default function App() {
       if (l.campaign) map[l.campaign] = (map[l.campaign] || 0) + 1;
     });
     return map;
-  }, [periodLeadsRaw]);
+  }, [periodLeads]);
 
   const filtered = useMemo(() => {
     let list = [...campaigns];
