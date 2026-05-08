@@ -64,7 +64,7 @@
   padding: 16px 18px;
   animation: fadeUp .4s ease both;
 }
-.kpi-label { font-size: 11px; color: white; text-transform: uppercase; letter-spacing: .6px; margin-bottom: 6px; }
+.kpi-label { font-size: 11px; color: var(--text-3); text-transform: uppercase; letter-spacing: .6px; margin-bottom: 6px; }
 .kpi-value { font-size: 24px; font-weight: 600; letter-spacing: -0.5px; }
 
 /* ── Charts ────────────────────────────────────────────────────────────────── */
@@ -155,7 +155,7 @@
 }
 .cstat { text-align: right; }
 .cstat-val { display: block; font-size: 16px; font-weight: 600; letter-spacing: -0.3px; }
-.cstat-lbl { display: block; font-size: 10px; color: white; text-transform: uppercase; letter-spacing: .4px; margin-top: 1px; }
+.cstat-lbl { display: block; font-size: 10px; color: var(--text-3); text-transform: uppercase; letter-spacing: .4px; margin-top: 1px; }
 @media (max-width: 700px) {
   .cstat:nth-child(n+3) { display: none; }
 }
@@ -228,7 +228,7 @@
   background: var(--navy-3); border: 1px solid var(--border);
   border-radius: 10px; padding: 12px 16px;
 }
-.chip-label { display: block; font-size: 10px; color: white; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; }
+.chip-label { display: block; font-size: 10px; color: var(--text-3); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; }
 .chip-value { display: block; font-size: 22px; font-weight: 600; color: var(--accent-chip, var(--accent)); letter-spacing: -0.5px; }
 .chip-sub   { display: block; font-size: 10px; color: var(--text-3); margin-top: 2px; font-family: var(--mono); }
 
@@ -261,7 +261,7 @@
 .vd-tab {
   padding: 10px 20px; border: none; background: transparent;
   font-size: 13px; font-weight: 500; cursor: pointer;
-  font-family: var(--font); color: white;
+  font-family: var(--font); color: var(--text-3);
   border-bottom: 2px solid transparent;
   transition: all .15s;
 }
@@ -386,9 +386,7 @@
   width: 26px; height: 26px; border-radius: 50%;
   background: #128c7e; display: flex; align-items: center; justify-content: center;
 }
-.vd-kpis > div:nth-child(5){
-  display: none;
-}
+
 /* ── State screens ─────────────────────────────────────────────────────────── */
 .state-screen {
   display: flex; flex-direction: column; align-items: center;
@@ -410,12 +408,26 @@
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: none; }
 }
+
+/* ── Period bar ────────────────────────────────────────────────────────────── */
+.period-bar {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 20px; flex-wrap: wrap;
+}
+.period-loading { font-size: 12px; color: var(--text-3); font-family: var(--mono); }
+
+/* ── Status filters ────────────────────────────────────────────────────────── */
 .status-filters { display: flex; gap: 6px; flex-wrap: wrap; }
 .status-btn-live.active   { background: rgba(0,212,170,.15); border-color: #00d4aa; color: #00d4aa; }
 .status-btn-paused.active { background: rgba(245,166,35,.15); border-color: #f5a623; color: #f5a623; }
 .status-btn-draft.active  { background: rgba(138,154,176,.15); border-color: #8a9ab0; color: #8a9ab0; }
 .status-btn-all.active    { background: rgba(255,255,255,.08); border-color: var(--border-2); color: var(--text-1); }
-.status-badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 999px; margin-left: 8px; vertical-align: middle; }
+
+/* ── Status badge ──────────────────────────────────────────────────────────── */
+.status-badge {
+  display: inline-block; font-size: 11px; font-weight: 600;
+  padding: 2px 9px; border-radius: 999px; margin-left: 8px; vertical-align: middle;
+}
 .status-live   { background: rgba(0,212,170,.12); color: #00d4aa; }
 .status-paused { background: rgba(245,166,35,.12); color: #f5a623; }
 .status-draft  { background: rgba(138,154,176,.12); color: #8a9ab0; }
