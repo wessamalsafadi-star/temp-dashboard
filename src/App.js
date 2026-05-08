@@ -4,7 +4,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   LineChart, Line,
 } from 'recharts';
-import { fetchLatestSnapshot } from './supabase';
+import { fetchLatestSnapshot, fetchLeadsByPeriod } from './supabase';
 import './App.css';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -20,6 +20,11 @@ function fmtDate(iso) {
   });
 }
 
+function fmtShort(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+}
+
 function interpolate(text) {
   if (!text) return '';
   return text
@@ -27,6 +32,13 @@ function interpolate(text) {
     .replace(/\{\{first_name\}\}/g, 'Sarah')
     .replace(/\{\{[^}]+\}\}/g, '…');
 }
+
+const PERIODS = [
+  { label: 'Last 7 days',   days: 7   },
+  { label: 'Last month',    days: 30  },
+  { label: 'Last 3 months', days: 90  },
+  { label: 'Last 6 months', days: 180 },
+];
 
 // ─── Stat chip ────────────────────────────────────────────────────────────────
 function Chip({ label, value, accent, sub }) {
@@ -65,7 +77,6 @@ function WhatsAppPreview({ cms }) {
           <div className="wa-online">online</div>
         </div>
       </div>
-
       <div className="wa-chat">
         <div className="wa-day-label">Today</div>
         <div className="wa-bubble-wrap">
@@ -98,7 +109,6 @@ function WhatsAppPreview({ cms }) {
           </div>
         </div>
       </div>
-
       <div className="wa-input-bar">
         <div className="wa-input-fake">Message</div>
         <div className="wa-send">
@@ -115,9 +125,9 @@ function VariantDetail({ variant, accentColor, onClose }) {
   const { name, template, metrics = {}, cms } = variant;
   const { numberOfContacts: sent = 0, openRate = 0, clicksByUser: clicks = 0, numberOfLeads: leads = 0 } = metrics;
 
-  const openCount    = Math.round((openRate / 100) * sent);
-  const healthScore  = Math.round(openRate * 0.5 + (sent ? (clicks / sent) * 100 * 0.3 : 0) + (sent ? (leads / sent) * 100 * 0.2 : 0));
-  const healthColor  = healthScore >= 60 ? '#00d4aa' : healthScore >= 30 ? '#f5a623' : '#ff4d4d';
+  const openCount   = Math.round((openRate / 100) * sent);
+  const healthScore = Math.round(openRate * 0.5 + (sent ? (clicks / sent) * 100 * 0.3 : 0) + (sent ? (leads / sent) * 100 * 0.2 : 0));
+  const healthColor = healthScore >= 60 ? '#00d4aa' : healthScore >= 30 ? '#f5a623' : '#ff4d4d';
 
   const funnelData = [
     { stage: 'Sent',    count: sent,      fill: '#4d9fff' },
@@ -134,12 +144,10 @@ function VariantDetail({ variant, accentColor, onClose }) {
         </div>
         <button className="vd-close" onClick={onClose}>✕ Close</button>
       </div>
-
       <div className="vd-tabs">
         {variant.cms && <button className={`vd-tab ${tab === 'preview' ? 'active' : ''}`} onClick={() => setTab('preview')}>📱 Preview</button>}
         <button className={`vd-tab ${tab === 'analytics' ? 'active' : ''}`} onClick={() => setTab('analytics')}>📊 Analytics</button>
       </div>
-
       <div className="vd-body">
         {tab === 'preview' && (
           <div className="vd-preview-grid">
@@ -200,17 +208,15 @@ function VariantDetail({ variant, accentColor, onClose }) {
             </div>
           </div>
         )}
-
         {tab === 'analytics' && (
           <>
             <div className="vd-kpis">
-              <Chip label="Sent"        value={fmt(sent)}            accent="#4d9fff" />
-              <Chip label="Open rate"   value={round(openRate) + '%'} accent="#00d4aa" sub={fmt(openCount) + ' opened'} />
-              <Chip label="Clicks"      value={fmt(clicks)}           accent="#f5a623" sub={pct(clicks, sent) + ' of sent'} />
-              <Chip label="Leads"       value={fmt(leads)}            accent="#a78bfa" sub={pct(leads, sent) + ' conversion'} />
-              <Chip label="Health"      value={healthScore}           accent={healthColor} sub="out of 100" />
+              <Chip label="Sent"      value={fmt(sent)}             accent="#4d9fff" />
+              <Chip label="Open rate" value={round(openRate) + '%'} accent="#00d4aa" sub={fmt(openCount) + ' opened'} />
+              <Chip label="Clicks"    value={fmt(clicks)}           accent="#f5a623" sub={pct(clicks, sent) + ' of sent'} />
+              <Chip label="Leads"     value={fmt(leads)}            accent="#a78bfa" sub={pct(leads, sent) + ' conversion'} />
+              <Chip label="Health"    value={healthScore}           accent={healthColor} sub="out of 100" />
             </div>
-
             <div className="vd-charts">
               <div className="chart-card">
                 <div className="chart-title">Funnel</div>
@@ -226,7 +232,6 @@ function VariantDetail({ variant, accentColor, onClose }) {
                   </div>
                 ))}
               </div>
-
               <div className="chart-card">
                 <div className="chart-title">Breakdown</div>
                 <ResponsiveContainer width="100%" height={160}>
@@ -234,10 +239,7 @@ function VariantDetail({ variant, accentColor, onClose }) {
                     <Pie data={funnelData.filter(f => f.count > 0)} dataKey="count" cx="50%" cy="50%" innerRadius={40} outerRadius={60} paddingAngle={3}>
                       {funnelData.map(f => <Cell key={f.stage} fill={f.fill} />)}
                     </Pie>
-                    <Tooltip
-                      contentStyle={{ background: 'var(--navy-3)', border: '1px solid var(--border-2)', borderRadius: 8, fontSize: 12 }}
-                      formatter={v => fmt(v)}
-                    />
+                    <Tooltip contentStyle={{ background: 'var(--navy-3)', border: '1px solid var(--border-2)', borderRadius: 8, fontSize: 12 }} formatter={v => fmt(v)} />
                   </PieChart>
                 </ResponsiveContainer>
                 <div className="pie-legend">
@@ -258,9 +260,9 @@ function VariantDetail({ variant, accentColor, onClose }) {
 }
 
 // ─── Campaign row ─────────────────────────────────────────────────────────────
-function CampaignRow({ campaign, index }) {
-  const [open, setOpen]       = useState(false);
-  const [active, setActive]   = useState(null);
+function CampaignRow({ campaign, index, periodLeadsMap }) {
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(null);
 
   const {
     campaignName, dateCreated,
@@ -268,8 +270,9 @@ function CampaignRow({ campaign, index }) {
     variants = [],
   } = campaign;
 
-  const convRate = numberOfContacts ? ((numberOfLeads / numberOfContacts) * 100).toFixed(1) : 0;
-  const accent   = ['#00d4aa', '#4d9fff', '#f5a623', '#a78bfa', '#ff6b6b', '#34d399'][index % 6];
+  const convRate    = numberOfContacts ? ((numberOfLeads / numberOfContacts) * 100).toFixed(1) : 0;
+  const accent      = ['#00d4aa', '#4d9fff', '#f5a623', '#a78bfa', '#ff6b6b', '#34d399'][index % 6];
+  const periodLeads = periodLeadsMap?.[campaignName] || 0;
 
   return (
     <div className={`campaign-row ${open ? 'open' : ''}`} style={{ '--row-accent': accent, animationDelay: `${index * 40}ms` }}>
@@ -278,13 +281,13 @@ function CampaignRow({ campaign, index }) {
           <div className="campaign-accent-bar" />
           <div>
             <div className="campaign-name">
-  {campaignName}
-  {campaign.status && (
-    <span className={`status-badge status-${campaign.status}`}>
-      {campaign.status === 'live' ? '● Live' : campaign.status === 'paused' ? '⏸ Paused' : '○ Draft'}
-    </span>
-  )}
-</div>
+              {campaignName}
+              {campaign.status && (
+                <span className={`status-badge status-${campaign.status}`}>
+                  {campaign.status === 'live' ? '● Live' : campaign.status === 'paused' ? '⏸ Paused' : '○ Draft'}
+                </span>
+              )}
+            </div>
             <div className="campaign-date">{fmtDate(dateCreated)} · {variants.length} variant{variants.length !== 1 ? 's' : ''}</div>
           </div>
         </div>
@@ -303,7 +306,11 @@ function CampaignRow({ campaign, index }) {
           </div>
           <div className="cstat">
             <span className="cstat-val" style={{ color: '#a78bfa' }}>{fmt(numberOfLeads)}</span>
-            <span className="cstat-lbl">leads</span>
+            <span className="cstat-lbl">all-time leads</span>
+          </div>
+          <div className="cstat">
+            <span className="cstat-val" style={{ color: '#00d4aa' }}>{fmt(periodLeads)}</span>
+            <span className="cstat-lbl">period leads</span>
           </div>
           <div className="cstat">
             <span className="cstat-val" style={{ color: '#ff9d4d' }}>{convRate}%</span>
@@ -320,7 +327,7 @@ function CampaignRow({ campaign, index }) {
           ) : (
             <div className="variants-grid">
               {variants.map(v => {
-                const vkey = v.id || v.name;
+                const vkey     = v.id || v.name;
                 const isActive = active === vkey;
                 const hasCms   = !!v.cms;
                 return (
@@ -348,17 +355,11 @@ function CampaignRow({ campaign, index }) {
                     </div>
                     <div className="vc-actions">
                       {hasCms && (
-                        <button
-                          className={`vc-btn ${isActive ? 'primary' : ''}`}
-                          onClick={() => setActive(isActive ? null : vkey)}
-                        >
+                        <button className={`vc-btn ${isActive ? 'primary' : ''}`} onClick={() => setActive(isActive ? null : vkey)}>
                           {isActive ? '▲ Hide' : '📱 Preview'}
                         </button>
                       )}
-                      <button
-                        className={`vc-btn ${isActive && !hasCms ? 'primary' : ''}`}
-                        onClick={() => setActive(isActive ? null : vkey)}
-                      >
+                      <button className={`vc-btn ${isActive && !hasCms ? 'primary' : ''}`} onClick={() => setActive(isActive ? null : vkey)}>
                         {isActive ? '▲ Hide' : '📊 Analytics'}
                       </button>
                     </div>
@@ -367,19 +368,66 @@ function CampaignRow({ campaign, index }) {
               })}
             </div>
           )}
-
           {active && (() => {
             const v = variants.find(v => (v.id || v.name) === active);
-            return v ? (
-              <VariantDetail
-                variant={v}
-                accentColor={accent}
-                onClose={() => setActive(null)}
-              />
-            ) : null;
+            return v ? <VariantDetail variant={v} accentColor={accent} onClose={() => setActive(null)} /> : null;
           })()}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Leads over time chart ────────────────────────────────────────────────────
+function LeadsChart({ leads, days }) {
+  const chartData = useMemo(() => {
+    if (!leads.length) return [];
+
+    // Build a map of date → count
+    const map = {};
+    leads.forEach(l => {
+      const d = new Date(l.created_at);
+      // Group by week if > 30 days, else by day
+      let key;
+      if (days > 30) {
+        // week bucket: Monday of that week
+        const day = d.getDay();
+        const monday = new Date(d);
+        monday.setDate(d.getDate() - ((day + 6) % 7));
+        key = monday.toISOString().slice(0, 10);
+      } else {
+        key = d.toISOString().slice(0, 10);
+      }
+      map[key] = (map[key] || 0) + 1;
+    });
+
+    return Object.entries(map)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, count]) => ({ date: fmtShort(date), count }));
+  }, [leads, days]);
+
+  if (!chartData.length) return null;
+
+  return (
+    <div className="chart-panel" style={{ marginBottom: 24 }}>
+      <div className="chart-panel-title">
+        Leads over time — {PERIODS.find(p => p.days === days)?.label || ''}
+        <span style={{ marginLeft: 10, fontWeight: 400, color: 'var(--accent)', fontSize: 13 }}>
+          {leads.length.toLocaleString()} total
+        </span>
+      </div>
+      <ResponsiveContainer width="100%" height={180}>
+        <BarChart data={chartData} margin={{ top: 4, right: 16, left: -16, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,.04)" />
+          <XAxis dataKey="date" tick={{ fontSize: 11, fill: 'var(--text-3)' }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+          <YAxis tick={{ fontSize: 11, fill: 'var(--text-3)' }} axisLine={false} tickLine={false} />
+          <Tooltip
+            contentStyle={{ background: 'var(--navy-3)', border: '1px solid var(--border-2)', borderRadius: 8, fontSize: 12, color: 'var(--text-1)' }}
+            formatter={v => [v, 'Leads']}
+          />
+          <Bar dataKey="count" fill="var(--accent)" radius={[3, 3, 0, 0]} name="Leads" />
+        </BarChart>
+      </ResponsiveContainer>
     </div>
   );
 }
@@ -429,7 +477,6 @@ function Charts({ campaigns }) {
           </BarChart>
         </ResponsiveContainer>
       </div>
-
       <div className="chart-panel">
         <div className="chart-panel-title">Top campaigns — open rate %</div>
         <ResponsiveContainer width="100%" height={220}>
@@ -452,12 +499,15 @@ function Charts({ campaigns }) {
 
 // ─── Main App ─────────────────────────────────────────────────────────────────
 export default function App() {
-  const [campaigns, setCampaigns]   = useState([]);
-  const [syncedAt,  setSyncedAt]    = useState(null);
-  const [status,    setStatus]      = useState('loading'); // loading | success | error
-  const [search,    setSearch]      = useState('');
-  const [sortBy,    setSortBy]      = useState('date');
-  const [filterStatus, setFilterStatus] = useState('all');
+  const [campaigns,     setCampaigns]     = useState([]);
+  const [syncedAt,      setSyncedAt]      = useState(null);
+  const [status,        setStatus]        = useState('loading');
+  const [search,        setSearch]        = useState('');
+  const [sortBy,        setSortBy]        = useState('date');
+  const [filterStatus,  setFilterStatus]  = useState('all');
+  const [periodDays,    setPeriodDays]    = useState(30);
+  const [periodLeads,   setPeriodLeads]   = useState([]);
+  const [leadsLoading,  setLeadsLoading]  = useState(false);
 
   const load = useCallback(async () => {
     setStatus('loading');
@@ -472,7 +522,29 @@ export default function App() {
     }
   }, []);
 
+  const loadLeads = useCallback(async (days) => {
+    setLeadsLoading(true);
+    try {
+      const data = await fetchLeadsByPeriod(days);
+      setPeriodLeads(data);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLeadsLoading(false);
+    }
+  }, []);
+
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { loadLeads(periodDays); }, [loadLeads, periodDays]);
+
+  // Build a map of campaignName → lead count for the selected period
+  const periodLeadsMap = useMemo(() => {
+    const map = {};
+    periodLeads.forEach(l => {
+      if (l.campaign) map[l.campaign] = (map[l.campaign] || 0) + 1;
+    });
+    return map;
+  }, [periodLeads]);
 
   const filtered = useMemo(() => {
     let list = [...campaigns];
@@ -483,23 +555,26 @@ export default function App() {
         c.variants?.some(v => v.template?.toLowerCase().includes(q))
       );
     }
-    if (sortBy === 'leads')    list.sort((a, b) => (b.numberOfLeads || 0)    - (a.numberOfLeads || 0));
-    if (sortBy === 'contacts') list.sort((a, b) => (b.numberOfContacts || 0) - (a.numberOfContacts || 0));
-    if (sortBy === 'openrate') list.sort((a, b) => (b.openRate || 0)         - (a.openRate || 0));
-    if (sortBy === 'date')     list.sort((a, b) => new Date(b.dateCreated)   - new Date(a.dateCreated));
-    if (filterStatus !== 'all') list = list.filter(c => c.status === filterStatus);
+    if (sortBy === 'leads')       list.sort((a, b) => (b.numberOfLeads || 0)    - (a.numberOfLeads || 0));
+    if (sortBy === 'contacts')    list.sort((a, b) => (b.numberOfContacts || 0) - (a.numberOfContacts || 0));
+    if (sortBy === 'openrate')    list.sort((a, b) => (b.openRate || 0)         - (a.openRate || 0));
+    if (sortBy === 'date')        list.sort((a, b) => new Date(b.dateCreated)   - new Date(a.dateCreated));
+    if (sortBy === 'periodleads') list.sort((a, b) => (periodLeadsMap[b.campaignName] || 0) - (periodLeadsMap[a.campaignName] || 0));
+    if (filterStatus !== 'all')   list = list.filter(c => c.status === filterStatus);
     return list;
-  }, [campaigns, search, sortBy, filterStatus]);
+  }, [campaigns, search, sortBy, filterStatus, periodLeadsMap]);
 
   const totals = useMemo(() => ({
-    campaigns:  campaigns.length,
-    contacts:   campaigns.reduce((s, c) => s + (c.numberOfContacts || 0), 0),
-    leads:      campaigns.reduce((s, c) => s + (c.numberOfLeads    || 0), 0),
-    clicks:     campaigns.reduce((s, c) => s + (c.clicksByUser     || 0), 0),
-    avgOpen:    campaigns.length
+    campaigns: campaigns.length,
+    contacts:  campaigns.reduce((s, c) => s + (c.numberOfContacts || 0), 0),
+    leads:     campaigns.reduce((s, c) => s + (c.numberOfLeads    || 0), 0),
+    clicks:    campaigns.reduce((s, c) => s + (c.clicksByUser     || 0), 0),
+    avgOpen:   campaigns.length
       ? round(campaigns.reduce((s, c) => s + (c.openRate || 0), 0) / campaigns.length)
       : 0,
   }), [campaigns]);
+
+  const syncDotColor = { loading: '#378ADD', success: '#00d4aa', error: '#ff4d4d' }[status] || '#888';
 
   return (
     <div className="app">
@@ -514,7 +589,7 @@ export default function App() {
         </div>
         <div className="header-right">
           <div className={`sync-pill ${status}`}>
-            <span className="sync-dot" />
+            <span className="sync-dot" style={{ background: syncDotColor }} />
             {status === 'loading' && 'Syncing…'}
             {status === 'success' && `Synced · ${fmtDate(syncedAt)}`}
             {status === 'error'   && 'Sync failed'}
@@ -532,11 +607,12 @@ export default function App() {
       {/* ── KPI strip ── */}
       <div className="kpi-strip">
         {[
-          { label: 'Campaigns',    value: totals.campaigns,             accent: 'var(--text-1)' },
-          { label: 'Total contacts', value: fmt(totals.contacts),       accent: '#4d9fff' },
-          { label: 'Avg open rate',  value: totals.avgOpen + '%',       accent: '#00d4aa' },
-          { label: 'Total clicks',   value: fmt(totals.clicks),         accent: '#f5a623' },
-          { label: 'Total leads',    value: fmt(totals.leads),          accent: '#a78bfa' },
+          { label: 'Campaigns',      value: totals.campaigns,             accent: 'var(--text-1)' },
+          { label: 'Total contacts', value: fmt(totals.contacts),         accent: '#4d9fff' },
+          { label: 'Avg open rate',  value: totals.avgOpen + '%',         accent: '#00d4aa' },
+          { label: 'Total clicks',   value: fmt(totals.clicks),           accent: '#f5a623' },
+          { label: 'All-time leads', value: fmt(totals.leads),            accent: '#a78bfa' },
+          { label: 'Period leads',   value: leadsLoading ? '…' : fmt(periodLeads.length), accent: '#00d4aa' },
           { label: 'Conv. rate',     value: totals.contacts ? ((totals.leads / totals.contacts) * 100).toFixed(2) + '%' : '—', accent: '#ff9d4d' },
         ].map(k => (
           <div key={k.label} className="kpi-card">
@@ -546,7 +622,23 @@ export default function App() {
         ))}
       </div>
 
-      {/* ── Charts ── */}
+      {/* ── Period selector ── */}
+      <div className="period-bar">
+        <span className="sort-label">Period</span>
+        {PERIODS.map(p => (
+          <button
+            key={p.days}
+            className={`sort-btn ${periodDays === p.days ? 'active' : ''}`}
+            onClick={() => setPeriodDays(p.days)}
+          >{p.label}</button>
+        ))}
+        {leadsLoading && <span className="period-loading">loading…</span>}
+      </div>
+
+      {/* ── Leads over time chart ── */}
+      {periodLeads.length > 0 && <LeadsChart leads={periodLeads} days={periodDays} />}
+
+      {/* ── All-time charts ── */}
       {campaigns.length > 0 && <Charts campaigns={campaigns} />}
 
       {/* ── Controls ── */}
@@ -565,28 +657,22 @@ export default function App() {
         </div>
         <div className="sort-wrap">
           <span className="sort-label">Sort</span>
-          {[['date', 'Date'], ['leads', 'Leads'], ['contacts', 'Contacts'], ['openrate', 'Open rate']].map(([v, l]) => (
+          {[['date','Date'],['leads','All-time leads'],['periodleads','Period leads'],['contacts','Contacts'],['openrate','Open rate']].map(([v,l]) => (
             <button key={v} className={`sort-btn ${sortBy === v ? 'active' : ''}`} onClick={() => setSortBy(v)}>{l}</button>
           ))}
         </div>
-          <div className="status-filters">
-  {[['all','All'],['live','● Live'],['paused','⏸ Paused'],['draft','○ Draft']].map(([v,l]) => (
-    <button key={v}
-      className={`sort-btn status-btn-${v} ${filterStatus === v ? 'active' : ''}`}
-      onClick={() => setFilterStatus(v)}>{l}
-    </button>
-  ))}
-</div>
-<span className="results-count">{filtered.length} / {campaigns.length} campaigns</span>
+        <div className="status-filters">
+          {[['all','All'],['live','● Live'],['paused','⏸ Paused'],['draft','○ Draft']].map(([v,l]) => (
+            <button key={v} className={`sort-btn status-btn-${v} ${filterStatus === v ? 'active' : ''}`} onClick={() => setFilterStatus(v)}>{l}</button>
+          ))}
+        </div>
+        <span className="results-count">{filtered.length} / {campaigns.length} campaigns</span>
       </div>
 
       {/* ── Campaign list ── */}
       <div className="campaign-list">
         {status === 'loading' && campaigns.length === 0 && (
-          <div className="state-screen">
-            <div className="spinner" />
-            <span>Loading campaigns from Supabase…</span>
-          </div>
+          <div className="state-screen"><div className="spinner" /><span>Loading campaigns from Supabase…</span></div>
         )}
         {status === 'error' && (
           <div className="state-screen error">
@@ -598,11 +684,11 @@ export default function App() {
           </div>
         )}
         {status === 'success' && filtered.length === 0 && (
-          <div className="state-screen">
-            <span>No campaigns match your search.</span>
-          </div>
+          <div className="state-screen"><span>No campaigns match your search.</span></div>
         )}
-        {filtered.map((c, i) => <CampaignRow key={c._id} campaign={c} index={i} />)}
+        {filtered.map((c, i) => (
+          <CampaignRow key={c._id} campaign={c} index={i} periodLeadsMap={periodLeadsMap} />
+        ))}
       </div>
     </div>
   );
