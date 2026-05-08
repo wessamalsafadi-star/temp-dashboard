@@ -431,3 +431,6 @@
 .status-live   { background: rgba(0,212,170,.12); color: #00d4aa; }
 .status-paused { background: rgba(245,166,35,.12); color: #f5a623; }
 .status-draft  { background: rgba(138,154,176,.12); color: #8a9ab0; }
+
+.kpi-sub   { font-size: 11px; color: var(--text-3); margin-top: 3px; font-family: var(--mono); }
+.cstat-sub { display: block; font-size: 10px; color: var(--text-3); margin-top: 1px; font-family: var(--mono); }
