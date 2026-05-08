@@ -260,9 +260,18 @@ function VariantDetail({ variant, accentColor, onClose }) {
 }
 
 // ─── Campaign row ─────────────────────────────────────────────────────────────
-function CampaignRow({ campaign, index, periodLeadsMap }) {
+function CampaignRow({ campaign, index, periodLeadsMap, periodLeads }) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(null);
+
+  // Build template → lead count map for this campaign's variants
+  const periodLeadsByTemplate = useMemo(() => {
+    const map = {};
+    (periodLeads || []).forEach(l => {
+      if (l.template) map[l.template] = (map[l.template] || 0) + 1;
+    });
+    return map;
+  }, [periodLeads]);
 
   const {
     campaignName, dateCreated,
@@ -305,12 +314,9 @@ function CampaignRow({ campaign, index, periodLeadsMap }) {
             <span className="cstat-lbl">clicks</span>
           </div>
           <div className="cstat">
-            <span className="cstat-val" style={{ color: '#a78bfa' }}>{fmt(numberOfLeads)}</span>
-            <span className="cstat-lbl">all-time leads</span>
-          </div>
-          <div className="cstat">
-            <span className="cstat-val" style={{ color: '#00d4aa' }}>{fmt(periodLeads)}</span>
+            <span className="cstat-val" style={{ color: '#a78bfa' }}>{fmt(periodLeads)}</span>
             <span className="cstat-lbl">period leads</span>
+            <span className="cstat-sub">{fmt(numberOfLeads)} all-time</span>
           </div>
           <div className="cstat">
             <span className="cstat-val" style={{ color: '#ff9d4d' }}>{convRate}%</span>
@@ -342,10 +348,11 @@ function CampaignRow({ campaign, index, periodLeadsMap }) {
                     <div className="vc-pct-label">{v.percentage || 0}% of audience</div>
                     <div className="vc-metrics">
                       {[
-                        ['Contacts', fmt(v.metrics?.numberOfContacts), '#4d9fff'],
-                        ['Open',     round(v.metrics?.openRate) + '%',  '#00d4aa'],
-                        ['Clicks',   fmt(v.metrics?.clicksByUser),      '#f5a623'],
-                        ['Leads',    fmt(v.metrics?.numberOfLeads),     '#a78bfa'],
+                        ['Contacts',     fmt(v.metrics?.numberOfContacts),                    '#4d9fff'],
+                        ['Open',         round(v.metrics?.openRate) + '%',                    '#00d4aa'],
+                        ['Clicks',       fmt(v.metrics?.clicksByUser),                        '#f5a623'],
+                        ['All-time leads', fmt(v.metrics?.numberOfLeads),                     '#a78bfa'],
+                        ['Period leads',   fmt(periodLeadsByTemplate[v.template] || 0),       '#00d4aa'],
                       ].map(([l, val, c]) => (
                         <div key={l} className="vc-metric-row">
                           <span className="vc-metric-lbl">{l}</span>
@@ -611,13 +618,13 @@ export default function App() {
           { label: 'Total contacts', value: fmt(totals.contacts),         accent: '#4d9fff' },
           { label: 'Avg open rate',  value: totals.avgOpen + '%',         accent: '#00d4aa' },
           { label: 'Total clicks',   value: fmt(totals.clicks),           accent: '#f5a623' },
-          { label: 'All-time leads', value: fmt(totals.leads),            accent: '#a78bfa' },
-          { label: 'Period leads',   value: leadsLoading ? '…' : fmt(periodLeads.length), accent: '#00d4aa' },
+          { label: 'Leads', value: leadsLoading ? '…' : fmt(periodLeads.length), accent: '#a78bfa', sub: fmt(totals.leads) + ' all-time' },
           { label: 'Conv. rate',     value: totals.contacts ? ((totals.leads / totals.contacts) * 100).toFixed(2) + '%' : '—', accent: '#ff9d4d' },
         ].map(k => (
           <div key={k.label} className="kpi-card">
             <div className="kpi-label">{k.label}</div>
             <div className="kpi-value" style={{ color: k.accent }}>{k.value}</div>
+            {k.sub && <div className="kpi-sub">{k.sub}</div>}
           </div>
         ))}
       </div>
@@ -687,7 +694,7 @@ export default function App() {
           <div className="state-screen"><span>No campaigns match your search.</span></div>
         )}
         {filtered.map((c, i) => (
-          <CampaignRow key={c._id} campaign={c} index={i} periodLeadsMap={periodLeadsMap} />
+          <CampaignRow key={c._id} campaign={c} index={i} periodLeadsMap={periodLeadsMap} periodLeads={periodLeads} />
         ))}
       </div>
     </div>
