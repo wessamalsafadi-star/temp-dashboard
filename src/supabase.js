@@ -21,7 +21,8 @@ export async function fetchLeadsByPeriod(days, from, to) {
   let query = supabase
     .from('leads')
     .select('campaign, template, created_at')
-    .order('created_at', { ascending: true });
+    .order('created_at', { ascending: true })
+    .limit(10000);
 
   if (from && to) {
     // Custom range
