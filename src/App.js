@@ -38,6 +38,7 @@ const PERIODS = [
   { label: 'Last month',    days: 30  },
   { label: 'Last 3 months', days: 90  },
   { label: 'Last 6 months', days: 180 },
+  { label: 'All time',      days: 0   },
 ];
 
 // ─── Stat chip ────────────────────────────────────────────────────────────────
@@ -418,7 +419,7 @@ function LeadsChart({ leads, days }) {
   return (
     <div className="chart-panel" style={{ marginBottom: 24 }}>
       <div className="chart-panel-title">
-        Leads over time — {PERIODS.find(p => p.days === days)?.label || ''}
+        Leads over time — {PERIODS.find(p => p.days === days)?.label || 'Custom range'}
         <span style={{ marginLeft: 10, fontWeight: 400, color: 'var(--accent)', fontSize: 13 }}>
           {leads.length.toLocaleString()} total
         </span>
@@ -515,6 +516,9 @@ export default function App() {
   const [periodDays,    setPeriodDays]    = useState(30);
   const [periodLeads,   setPeriodLeads]   = useState([]);
   const [leadsLoading,  setLeadsLoading]  = useState(false);
+  const [customFrom,    setCustomFrom]    = useState('');
+  const [customTo,      setCustomTo]      = useState('');
+  const [showCustom,    setShowCustom]    = useState(false);
 
   const load = useCallback(async () => {
     setStatus('loading');
@@ -529,10 +533,10 @@ export default function App() {
     }
   }, []);
 
-  const loadLeads = useCallback(async (days) => {
+  const loadLeads = useCallback(async (days, from, to) => {
     setLeadsLoading(true);
     try {
-      const data = await fetchLeadsByPeriod(days);
+      const data = await fetchLeadsByPeriod(days, from, to);
       setPeriodLeads(data);
     } catch (e) {
       console.error(e);
@@ -542,7 +546,7 @@ export default function App() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { loadLeads(periodDays); }, [loadLeads, periodDays]);
+  useEffect(() => { loadLeads(periodDays, customFrom, customTo); }, [loadLeads, periodDays, customFrom, customTo]);
 
   // Build a map of campaignName → lead count for the selected period
   const periodLeadsMap = useMemo(() => {
@@ -635,12 +639,33 @@ export default function App() {
         {PERIODS.map(p => (
           <button
             key={p.days}
-            className={`sort-btn ${periodDays === p.days ? 'active' : ''}`}
-            onClick={() => setPeriodDays(p.days)}
+            className={`sort-btn ${!showCustom && periodDays === p.days ? 'active' : ''}`}
+            onClick={() => { setPeriodDays(p.days); setShowCustom(false); setCustomFrom(''); setCustomTo(''); }}
           >{p.label}</button>
         ))}
+        <button
+          className={`sort-btn ${showCustom ? 'active' : ''}`}
+          onClick={() => setShowCustom(s => !s)}
+        >Custom range</button>
         {leadsLoading && <span className="period-loading">loading…</span>}
       </div>
+      {showCustom && (
+        <div className="custom-range-bar">
+          <span className="sort-label">From</span>
+          <input type="date" className="date-input" value={customFrom}
+            onChange={e => setCustomFrom(e.target.value)} />
+          <span className="sort-label">To</span>
+          <input type="date" className="date-input" value={customTo}
+            onChange={e => setCustomTo(e.target.value)} />
+          <button className="sort-btn active"
+            onClick={() => { if (customFrom && customTo) loadLeads(0, customFrom, customTo); }}
+            disabled={!customFrom || !customTo}
+          >Apply</button>
+          <button className="sort-btn"
+            onClick={() => { setCustomFrom(''); setCustomTo(''); setShowCustom(false); setPeriodDays(30); }}
+          >Clear</button>
+        </div>
+      )}
 
       {/* ── Leads over time chart ── */}
       {periodLeads.length > 0 && <LeadsChart leads={periodLeads} days={periodDays} />}
