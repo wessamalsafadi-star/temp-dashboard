@@ -17,16 +17,28 @@ export async function fetchLatestSnapshot() {
   return { campaigns: data.data || [], syncedAt: data.created_at };
 }
 
-export async function fetchLeadsByPeriod(days) {
-  const since = new Date();
-  since.setDate(since.getDate() - days);
-
-  const { data, error } = await supabase
+export async function fetchLeadsByPeriod(days, from, to) {
+  let query = supabase
     .from('leads')
     .select('campaign, template, created_at')
-    .gte('created_at', since.toISOString())
     .order('created_at', { ascending: true });
 
+  if (from && to) {
+    // Custom range
+    const toDate = new Date(to);
+    toDate.setDate(toDate.getDate() + 1); // include the to date fully
+    query = query
+      .gte('created_at', new Date(from).toISOString())
+      .lt('created_at', toDate.toISOString());
+  } else if (days && days > 0) {
+    // Relative period
+    const since = new Date();
+    since.setDate(since.getDate() - days);
+    query = query.gte('created_at', since.toISOString());
+  }
+  // days === 0 with no from/to = all time, no filter applied
+
+  const { data, error } = await query;
   if (error) throw error;
   return data || [];
 }
