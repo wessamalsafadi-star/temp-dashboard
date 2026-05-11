@@ -269,7 +269,7 @@ function CampaignRow({ campaign, index, periodLeadsMap, periodLeadsRaw }) {
   const periodLeadsByTemplate = useMemo(() => {
     const map = {};
     (periodLeadsRaw || []).forEach(l => {
-      if (l.template) map[l.template] = (map[l.template] || 0) + 1;
+      if (l.template) map[l.template] = (map[l.template] || 0) + Number(l.lead_count);
     });
     return map;
   }, [periodLeadsRaw]);
@@ -391,22 +391,21 @@ function LeadsChart({ leads, days }) {
   const chartData = useMemo(() => {
     if (!leads.length) return [];
 
-    // Build a map of date → count
+    // leads is now aggregated: { day, campaign, template, lead_count }
+    // Group by day (or week if > 30 days)
     const map = {};
     leads.forEach(l => {
-      const d = new Date(l.created_at);
-      // Group by week if > 30 days, else by day
+      const d = new Date(l.day);
       let key;
       if (days > 30) {
-        // week bucket: Monday of that week
-        const day = d.getDay();
+        const dow = d.getDay();
         const monday = new Date(d);
-        monday.setDate(d.getDate() - ((day + 6) % 7));
+        monday.setDate(d.getDate() - ((dow + 6) % 7));
         key = monday.toISOString().slice(0, 10);
       } else {
         key = d.toISOString().slice(0, 10);
       }
-      map[key] = (map[key] || 0) + 1;
+      map[key] = (map[key] || 0) + Number(l.lead_count);
     });
 
     return Object.entries(map)
@@ -421,7 +420,7 @@ function LeadsChart({ leads, days }) {
       <div className="chart-panel-title">
         Leads over time — {PERIODS.find(p => p.days === days)?.label || 'Custom range'}
         <span style={{ marginLeft: 10, fontWeight: 400, color: 'var(--accent)', fontSize: 13 }}>
-          {leads.length.toLocaleString()} total
+          {leads.reduce((s, l) => s + Number(l.lead_count), 0).toLocaleString()} total
         </span>
       </div>
       <ResponsiveContainer width="100%" height={180}>
@@ -552,7 +551,7 @@ export default function App() {
   const periodLeadsMap = useMemo(() => {
     const map = {};
     periodLeads.forEach(l => {
-      if (l.campaign) map[l.campaign] = (map[l.campaign] || 0) + 1;
+      if (l.campaign) map[l.campaign] = (map[l.campaign] || 0) + Number(l.lead_count);
     });
     return map;
   }, [periodLeads]);
@@ -622,7 +621,7 @@ export default function App() {
           { label: 'Total contacts', value: fmt(totals.contacts),         accent: '#4d9fff' },
           { label: 'Avg open rate',  value: totals.avgOpen + '%',         accent: '#00d4aa' },
           { label: 'Total clicks',   value: fmt(totals.clicks),           accent: '#f5a623' },
-          { label: 'Leads', value: leadsLoading ? '…' : fmt(periodLeads.length), accent: '#a78bfa', sub: fmt(totals.leads) + ' all-time' },
+          { label: 'Leads', value: leadsLoading ? '…' : fmt(periodLeads.reduce((s, l) => s + Number(l.lead_count), 0)), accent: '#a78bfa', sub: fmt(totals.leads) + ' all-time' },
           { label: 'Conv. rate',     value: totals.contacts ? ((totals.leads / totals.contacts) * 100).toFixed(2) + '%' : '—', accent: '#ff9d4d' },
         ].map(k => (
           <div key={k.label} className="kpi-card">
