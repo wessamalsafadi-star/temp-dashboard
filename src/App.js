@@ -663,7 +663,7 @@ export default function App() {
   const [status,       setStatus]       = useState('loading');
   const [search,       setSearch]       = useState('');
   const [sortBy,       setSortBy]       = useState('date');
-  const [filterStatus, setFilterStatus] = useState('all');
+  const [filterStatus, setFilterStatus] = useState('live');
   const [category,     setCategory]     = useState('all');
   const [tier,         setTier]         = useState('all');
   const [onlyLeads,    setOnlyLeads]    = useState(false);
