@@ -565,10 +565,58 @@ function AttentionStrip({ campaigns, periodLeads, periodLeadsMap }) {
   );
 }
 
+// ─── Custom tooltip for the leads-over-time chart ───────────────────────────────
+// Shows the total for the bucket (day or week) plus a per-campaign breakdown,
+// sorted from biggest contributor to smallest.
+function LeadsBreakdownTooltip({ active, payload, label }) {
+  if (!active || !payload || !payload.length) return null;
+  const data = payload[0].payload;
+  const breakdown = Object.entries(data.byCampaign || {}).sort((a, b) => b[1] - a[1]);
+
+  return (
+    <div
+      style={{
+        background: 'var(--navy-3)',
+        border: '1px solid var(--border-2)',
+        borderRadius: 8,
+        padding: '10px 12px',
+        fontSize: 12,
+        color: 'var(--text-1)',
+        maxWidth: 260,
+      }}
+    >
+      <div style={{ fontWeight: 600, marginBottom: 4 }}>{label}</div>
+      <div style={{ color: 'var(--accent)', marginBottom: breakdown.length ? 6 : 0 }}>
+        {data.count.toLocaleString()} leads
+      </div>
+      {breakdown.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 3, maxHeight: 180, overflowY: 'auto' }}>
+          {breakdown.map(([name, count]) => (
+            <div key={name} style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+              <span
+                style={{
+                  color: 'var(--text-2)',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {name}
+              </span>
+              <span style={{ flexShrink: 0 }}>{count}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Leads over time chart ────────────────────────────────────────────────────
 function LeadsChart({ leads, days }) {
   const chartData = useMemo(() => {
     if (!leads.length) return [];
+    // key -> { total, byCampaign: { [campaignName]: count } }
     const map = {};
     leads.forEach(l => {
       const d = new Date(l.day);
@@ -579,9 +627,18 @@ function LeadsChart({ leads, days }) {
         monday.setDate(d.getDate() - ((dow + 6) % 7));
         key = monday.toISOString().slice(0, 10);
       } else { key = d.toISOString().slice(0, 10); }
-      map[key] = (map[key] || 0) + Number(l.lead_count);
+
+      if (!map[key]) map[key] = { total: 0, byCampaign: {} };
+      const count = Number(l.lead_count);
+      map[key].total += count;
+      if (l.campaign) {
+        map[key].byCampaign[l.campaign] = (map[key].byCampaign[l.campaign] || 0) + count;
+      }
     });
-    return Object.entries(map).sort(([a], [b]) => a.localeCompare(b)).map(([date, count]) => ({ date: fmtShort(date), count }));
+
+    return Object.entries(map)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, v]) => ({ date: fmtShort(date), count: v.total, byCampaign: v.byCampaign }));
   }, [leads, days]);
 
   if (!chartData.length) return null;
@@ -598,7 +655,7 @@ function LeadsChart({ leads, days }) {
           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,.04)" />
           <XAxis dataKey="date" tick={{ fontSize: 11, fill: 'var(--text-3)' }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
           <YAxis tick={{ fontSize: 11, fill: 'var(--text-3)' }} axisLine={false} tickLine={false} />
-          <Tooltip contentStyle={{ background: 'var(--navy-3)', border: '1px solid var(--border-2)', borderRadius: 8, fontSize: 12, color: 'var(--text-1)' }} formatter={v => [v, 'Leads']} />
+          <Tooltip content={<LeadsBreakdownTooltip />} cursor={{ fill: 'rgba(255,255,255,.06)' }} />
           <Bar dataKey="count" fill="var(--accent)" radius={[3, 3, 0, 0]} name="Leads" />
         </BarChart>
       </ResponsiveContainer>
