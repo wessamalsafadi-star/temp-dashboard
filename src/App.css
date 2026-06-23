@@ -4,6 +4,17 @@
   margin: 0 auto;
   padding: 0 24px 80px;
 }
+
+/* ─── Add to App.css: ActiveCampaign source badge ─────────────────────── */
+.source-badge {
+  background: rgba(77, 159, 255, 0.12);
+  color: #4d9fff !important;
+  border-color: rgba(77, 159, 255, 0.35) !important;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  margin-right: 6px;
+}
 /* ═══════════════════════════════════════════════════════════════════════════
    ADDITIONS — append to App.css  (replaces the previous additions file)
    Reuses existing tokens: --navy-2/3, --border, --border-2, --text-1/2/3, --accent
