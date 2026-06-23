@@ -40,3 +40,27 @@ export async function fetchLeadsByPeriod(days, from, to) {
   if (error) throw error;
   return data || [];
 }
+
+// ─── ActiveCampaign campaigns ───────────────────────────────────────────────
+// active_campaigns rows only carry `name` + `templates` (text[]) — no
+// contacts/openRate/click stats exist for this source. Those get filled in
+// with CMS data from active_campaign_templates and lead counts from the
+// same `leads` table the Engage CMS side already uses.
+export async function fetchActiveCampaigns() {
+  const { data, error } = await supabase
+    .from('active_campaigns')
+    .select('id, created_at, name, templates')
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return data || [];
+}
+
+export async function fetchActiveCampaignTemplates() {
+  const { data, error } = await supabase
+    .from('active_campaign_templates')
+    .select('template_name, body, header, buttons, updated_at');
+
+  if (error) throw error;
+  return data || [];
+}
