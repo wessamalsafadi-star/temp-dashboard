@@ -3,13 +3,17 @@ import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
 } from 'recharts';
-import { fetchLatestSnapshot, fetchLeadsByPeriod } from './supabase';
+import {
+  fetchLatestSnapshot, fetchLeadsByPeriod,
+  fetchActiveCampaigns, fetchActiveCampaignTemplates,
+} from './supabase';
 import './App.css';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-const fmt   = (n) => (n || 0).toLocaleString();
-const pct   = (n, d) => d ? Math.round((n / d) * 100) + '%' : '—';
-const round = (n) => Math.round((n || 0) * 10) / 10;
+const fmt   = (n) => (n == null ? '—' : n.toLocaleString());
+const pct   = (n, d) => (n == null || !d) ? '—' : Math.round((n / d) * 100) + '%';
+const round = (n) => (n == null ? null : Math.round(n * 10) / 10);
+const dash  = (v, suffix = '') => (v == null ? '—' : `${round(v)}${suffix}`);
 
 function healthScore({ contacts = 0, openRate = 0, clicks = 0, leads = 0 }) {
   if (!contacts) return 0;
@@ -37,6 +41,13 @@ function categoryOf(c) {
   if (/\b(retain|retention|renew|tenant|loyalty|keep)\b/.test(n))                   return 'retain';
   return 'other';
 }
+
+// ── Source (Engage CMS vs ActiveCampaign) ───────────────────────────────────
+const SOURCES = [
+  { key: 'all',      label: 'All sources' },
+  { key: 'engage',    label: 'Engage CMS' },
+  { key: 'activecampaign', label: 'ActiveCampaign' },
+];
 
 const tierOf = (color) =>
   color === '#00d4aa' ? 'top' : color === '#f5a623' ? 'mid' : color === '#ff6b6b' ? 'low' : 'none';
@@ -69,6 +80,49 @@ const PERIODS = [
   { label: 'All time',      days: 0   },
 ];
 
+// ─── Normalize ActiveCampaign rows into the same shape as Engage CMS campaigns ──
+// AC has no contacts/openRate/click metrics — those stay null so every
+// metric-rendering helper (fmt/pct/dash) already falls back to '—'.
+// Variants are built from `templates[]`, joined against the CMS cache
+// (active_campaign_templates) for the preview, and lead counts come from
+// `periodLeadsMap`/`periodLeadsRaw`, the same `leads` rows Engage CMS uses,
+// filtered by campaign name.
+function normalizeActiveCampaigns(rows, templateMap) {
+  return rows.map(r => {
+    const templates = r.templates || [];
+    const variants = templates.map((t, i) => {
+      const cms = templateMap[t];
+      return {
+        id: `${r.id}_${t}`,
+        name: templates.length > 1 ? `Template ${i + 1}` : 'Template',
+        template: t,
+        percentage: templates.length ? Math.round(100 / templates.length) : null,
+        metrics: { numberOfContacts: null, openRate: null, clicksByUser: null, numberOfLeads: null },
+        cms: cms ? {
+          title: null,
+          headerType: cms.header ? 'IMAGE' : 'TEXT', // AC sync doesn't capture type; image is the common case
+          header: cms.header,
+          body: cms.body,
+          buttons: cms.buttons || [],
+        } : null,
+      };
+    });
+
+    return {
+      _id: `ac_${r.id}`,
+      campaignName: r.name,
+      dateCreated: r.created_at,
+      numberOfContacts: null,
+      openRate: null,
+      clicksByUser: null,
+      numberOfLeads: null,
+      status: undefined,
+      source: 'activecampaign',
+      variants,
+    };
+  });
+}
+
 // ─── Tiny inline sparkline ──────────────────────────────────────────────────────
 function Sparkline({ values, color = '#00d4aa', w = 66, h = 22 }) {
   if (!values || values.length < 2) return null;
@@ -93,6 +147,12 @@ function Chip({ label, value, accent, sub }) {
       {sub && <span className="chip-sub">{sub}</span>}
     </div>
   );
+}
+
+// ─── Source badge ────────────────────────────────────────────────────────────
+function SourceBadge({ source }) {
+  if (source !== 'activecampaign') return null;
+  return <span className="tag tag-mono source-badge">AC</span>;
 }
 
 // ─── WA phone preview ─────────────────────────────────────────────────────────
@@ -228,19 +288,20 @@ function FragmentRow({ label, children }) {
 function VariantDetail({ variant, accentColor, onClose }) {
   const [tab, setTab] = useState(variant.cms ? 'preview' : 'analytics');
   const { name, template, metrics = {}, cms } = variant;
-  const { numberOfContacts: sent = 0, openRate = 0, clicksByUser: clicks = 0, numberOfLeads: leads = 0 } = metrics;
+  const { numberOfContacts: sent, openRate, clicksByUser: clicks, numberOfLeads: leads } = metrics;
+  const hasMetrics = sent != null;
 
-  const openCount = Math.round((openRate / 100) * sent);
-  const health    = healthScore({ contacts: sent, openRate, clicks, leads });
-  const hColor    = healthColor(health);
-  const leadsDead = leads === 0 && sent > 0;
+  const openCount = hasMetrics ? Math.round(((openRate || 0) / 100) * sent) : null;
+  const health    = hasMetrics ? healthScore({ contacts: sent, openRate, clicks, leads }) : null;
+  const hColor    = health != null ? healthColor(health) : 'var(--text-3)';
+  const leadsDead = hasMetrics && (leads || 0) === 0 && sent > 0;
 
-  const funnelData = [
-    { stage: 'Sent',    count: sent,      fill: '#4d9fff' },
-    { stage: 'Opened',  count: openCount, fill: '#00d4aa' },
-    { stage: 'Clicked', count: clicks,    fill: '#f5a623' },
-    { stage: 'Leads',   count: leads,     fill: '#a78bfa' },
-  ];
+  const funnelData = hasMetrics ? [
+    { stage: 'Sent',    count: sent,           fill: '#4d9fff' },
+    { stage: 'Opened',  count: openCount,      fill: '#00d4aa' },
+    { stage: 'Clicked', count: clicks || 0,    fill: '#f5a623' },
+    { stage: 'Leads',   count: leads || 0,     fill: '#a78bfa' },
+  ] : [];
 
   return (
     <div className="variant-detail" style={{ '--vd-accent': accentColor }}>
@@ -303,7 +364,7 @@ function VariantDetail({ variant, accentColor, onClose }) {
               )}
               <div className="vd-quick-stats">
                 <div className="vd-meta-label" style={{ marginBottom: 8 }}>Quick stats</div>
-                {[['Sent', fmt(sent), '#4d9fff'], ['Open rate', round(openRate) + '%', '#00d4aa'], ['Clicks', fmt(clicks), '#f5a623'], ['Leads', fmt(leads), '#a78bfa']].map(([l, v, c]) => (
+                {[['Sent', fmt(sent), '#4d9fff'], ['Open rate', dash(openRate, '%'), '#00d4aa'], ['Clicks', fmt(clicks), '#f5a623'], ['Leads', fmt(leads), '#a78bfa']].map(([l, v, c]) => (
                   <div key={l} className="vd-stat-row"><span>{l}</span><span style={{ color: c, fontWeight: 600 }}>{v}</span></div>
                 ))}
               </div>
@@ -314,39 +375,44 @@ function VariantDetail({ variant, accentColor, onClose }) {
           <>
             <div className="vd-kpis">
               <Chip label="Sent"      value={fmt(sent)}             accent="#4d9fff" />
-              <Chip label="Open rate" value={round(openRate) + '%'} accent="#00d4aa" sub={fmt(openCount) + ' opened'} />
-              <Chip label="Clicks"    value={fmt(clicks)}           accent="#f5a623" sub={pct(clicks, sent) + ' of sent'} />
-              <Chip label="Leads"     value={leadsDead ? '—' : fmt(leads)} accent={leadsDead ? 'var(--text-3)' : '#a78bfa'} sub={leadsDead ? 'none recorded' : pct(leads, sent) + ' conversion'} />
-              <Chip label="Health"    value={sent ? health : '—'}   accent={sent ? hColor : 'var(--text-3)'} sub={sent ? 'out of 100' : 'no data'} />
+              <Chip label="Open rate" value={dash(openRate, '%')}   accent="#00d4aa" sub={hasMetrics ? fmt(openCount) + ' opened' : undefined} />
+              <Chip label="Clicks"    value={fmt(clicks)}           accent="#f5a623" sub={hasMetrics ? pct(clicks, sent) + ' of sent' : undefined} />
+              <Chip label="Leads"     value={leadsDead ? '—' : fmt(leads)} accent={leadsDead ? 'var(--text-3)' : '#a78bfa'} sub={!hasMetrics ? undefined : leadsDead ? 'none recorded' : pct(leads, sent) + ' conversion'} />
+              <Chip label="Health"    value={hasMetrics ? health : '—'}   accent={hasMetrics ? hColor : 'var(--text-3)'} sub={hasMetrics ? 'out of 100' : 'no data'} />
             </div>
             <div className="vd-charts">
               <div className="chart-card">
                 <div className="chart-title">Funnel</div>
-                {funnelData.map((f, i) => (
+                {!hasMetrics && <div className="no-variants">No funnel metrics for this source.</div>}
+                {hasMetrics && funnelData.map((f, i) => (
                   <div key={f.stage} style={{ marginBottom: i < funnelData.length - 1 ? 12 : 0 }}>
                     <div className="funnel-row">
                       <span>{f.stage}</span>
                       <span style={{ color: f.fill }}>{fmt(f.count)} <span className="funnel-pct">({pct(f.count, sent)})</span></span>
                     </div>
-                    <div className="funnel-track"><div className="funnel-bar" style={{ width: pct(f.count, sent), background: f.fill }} /></div>
+                    <div className="funnel-track"><div className="funnel-bar" style={{ width: pct(f.count, sent) === '—' ? '0%' : pct(f.count, sent), background: f.fill }} /></div>
                   </div>
                 ))}
               </div>
               <div className="chart-card">
                 <div className="chart-title">Breakdown</div>
-                <ResponsiveContainer width="100%" height={160}>
-                  <PieChart>
-                    <Pie data={funnelData.filter(f => f.count > 0)} dataKey="count" cx="50%" cy="50%" innerRadius={40} outerRadius={60} paddingAngle={3}>
-                      {funnelData.map(f => <Cell key={f.stage} fill={f.fill} />)}
-                    </Pie>
-                    <Tooltip contentStyle={{ background: 'var(--navy-3)', border: '1px solid var(--border-2)', borderRadius: 8, fontSize: 12 }} formatter={v => fmt(v)} />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="pie-legend">
-                  {funnelData.map(f => (
-                    <span key={f.stage} className="legend-item"><span className="legend-dot" style={{ background: f.fill }} />{f.stage}</span>
-                  ))}
-                </div>
+                {hasMetrics ? (
+                  <>
+                    <ResponsiveContainer width="100%" height={160}>
+                      <PieChart>
+                        <Pie data={funnelData.filter(f => f.count > 0)} dataKey="count" cx="50%" cy="50%" innerRadius={40} outerRadius={60} paddingAngle={3}>
+                          {funnelData.map(f => <Cell key={f.stage} fill={f.fill} />)}
+                        </Pie>
+                        <Tooltip contentStyle={{ background: 'var(--navy-3)', border: '1px solid var(--border-2)', borderRadius: 8, fontSize: 12 }} formatter={v => fmt(v)} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div className="pie-legend">
+                      {funnelData.map(f => (
+                        <span key={f.stage} className="legend-item"><span className="legend-dot" style={{ background: f.fill }} />{f.stage}</span>
+                      ))}
+                    </div>
+                  </>
+                ) : <div className="no-variants">No breakdown available for this source.</div>}
               </div>
             </div>
           </>
@@ -360,6 +426,7 @@ function VariantDetail({ variant, accentColor, onClose }) {
 function CampaignDetail({ campaign, periodLeadsRaw, periodLeadsMap, accent }) {
   const [active, setActive] = useState(null);
   const { campaignName, numberOfContacts, openRate, clicksByUser, numberOfLeads, variants = [] } = campaign;
+  const hasMetrics = numberOfContacts != null;
 
   const periodLeadsByTemplate = useMemo(() => {
     const map = {};
@@ -381,24 +448,24 @@ function CampaignDetail({ campaign, periodLeadsRaw, periodLeadsMap, accent }) {
   }, [variants, periodLeadsByTemplate]);
 
   const campaignPeriodLeads = periodLeadsMap?.[campaignName] || 0;
-  const convRate  = numberOfContacts ? ((numberOfLeads / numberOfContacts) * 100).toFixed(1) : 0;
-  const leadsDead = (numberOfLeads || 0) === 0 && (numberOfContacts || 0) > 0;
+  const convRate  = (hasMetrics && numberOfContacts) ? ((numberOfLeads / numberOfContacts) * 100).toFixed(1) : null;
+  const leadsDead = hasMetrics && (numberOfLeads || 0) === 0 && (numberOfContacts || 0) > 0;
 
   return (
     <>
       <div className="drawer-stats">
         <Chip label="Contacts"     value={fmt(numberOfContacts)}      accent="#4d9fff" />
-        <Chip label="Open rate"    value={round(openRate) + '%'}      accent="#00d4aa" />
+        <Chip label="Open rate"    value={dash(openRate, '%')}        accent="#00d4aa" />
         <Chip label="Clicks"       value={fmt(clicksByUser)}          accent="#f5a623" />
-        <Chip label="Period leads" value={fmt(campaignPeriodLeads)}   accent="#a78bfa" sub={fmt(numberOfLeads) + ' all-time'} />
-        <Chip label="Conv."        value={leadsDead ? '—' : convRate + '%'} accent={leadsDead ? 'var(--text-3)' : '#ff9d4d'} />
+        <Chip label="Period leads" value={fmt(campaignPeriodLeads)}   accent="#a78bfa" sub={hasMetrics ? fmt(numberOfLeads) + ' all-time' : undefined} />
+        <Chip label="Conv."        value={leadsDead ? '—' : (convRate == null ? '—' : convRate + '%')} accent={leadsDead || convRate == null ? 'var(--text-3)' : '#ff9d4d'} />
       </div>
 
       {variants.length === 0 ? (
         <div className="no-variants">No variants configured for this campaign.</div>
       ) : (
         <>
-          {winnerInfo && (
+          {winnerInfo && hasMetrics && (
             <VariantComparison variants={variants} periodLeadsByTemplate={periodLeadsByTemplate} winnerInfo={winnerInfo} />
           )}
           <div className="variants-grid">
@@ -414,14 +481,14 @@ function CampaignDetail({ campaign, periodLeadsRaw, periodLeadsMap, accent }) {
                     <span className="tag tag-mono">{v.template}</span>
                   </div>
                   <div className="vc-pct-bar"><div className="vc-pct-fill" style={{ width: `${v.percentage || 0}%` }} /></div>
-                  <div className="vc-pct-label">{v.percentage || 0}% of audience</div>
+                  <div className="vc-pct-label">{v.percentage != null ? `${v.percentage}% of audience` : 'split unknown'}</div>
                   <div className="vc-metrics">
                     {[
-                      ['Contacts',       fmt(v.metrics?.numberOfContacts),            '#4d9fff'],
-                      ['Open',           round(v.metrics?.openRate) + '%',            '#00d4aa'],
-                      ['Clicks',         fmt(v.metrics?.clicksByUser),                '#f5a623'],
-                      ['All-time leads', fmt(v.metrics?.numberOfLeads),               '#a78bfa'],
-                      ['Period leads',   fmt(periodLeadsByTemplate[v.template] || 0), '#00d4aa'],
+                      ['Contacts',       fmt(v.metrics?.numberOfContacts),                '#4d9fff'],
+                      ['Open',           dash(v.metrics?.openRate, '%'),                  '#00d4aa'],
+                      ['Clicks',         fmt(v.metrics?.clicksByUser),                    '#f5a623'],
+                      ['All-time leads', fmt(v.metrics?.numberOfLeads),                   '#a78bfa'],
+                      ['Period leads',   fmt(periodLeadsByTemplate[v.template] || 0),     '#00d4aa'],
                     ].map(([l, val, c]) => (
                       <div key={l} className="vc-metric-row">
                         <span className="vc-metric-lbl">{l}</span>
@@ -458,8 +525,9 @@ function CampaignRow({ campaign, index, periodLeadsMap, periodLeadsRaw, accentCo
   const {
     campaignName, dateCreated,
     numberOfContacts, openRate, clicksByUser, numberOfLeads,
-    variants = [],
+    variants = [], source,
   } = campaign;
+  const hasMetrics = numberOfContacts != null;
 
   const sparkValues = useMemo(() => {
     const m = {};
@@ -467,10 +535,10 @@ function CampaignRow({ campaign, index, periodLeadsMap, periodLeadsRaw, accentCo
     return Object.keys(m).sort().map(k => m[k]);
   }, [periodLeadsRaw, campaignName]);
 
-  const convRate = numberOfContacts ? ((numberOfLeads / numberOfContacts) * 100).toFixed(1) : 0;
+  const convRate = (hasMetrics && numberOfContacts) ? ((numberOfLeads / numberOfContacts) * 100).toFixed(1) : null;
   const accent   = accentColor || '#4d9fff';
   const campaignPeriodLeads = periodLeadsMap?.[campaignName] || 0;
-  const leadsDead = (numberOfLeads || 0) === 0 && (numberOfContacts || 0) > 0;
+  const leadsDead = hasMetrics && (numberOfLeads || 0) === 0 && (numberOfContacts || 0) > 0;
   const cat = CAT_META[categoryOf(campaign)];
 
   return (
@@ -481,6 +549,7 @@ function CampaignRow({ campaign, index, periodLeadsMap, periodLeadsRaw, accentCo
           <div>
             <div className="campaign-name">
               <span className="cat-badge" style={{ color: cat.color, borderColor: cat.color }}>{cat.label}</span>
+              <SourceBadge source={source} />
               {campaignName}
               {campaign.status && (
                 <span className={`status-badge status-${campaign.status}`}>
@@ -499,16 +568,16 @@ function CampaignRow({ campaign, index, periodLeadsMap, periodLeadsRaw, accentCo
             </div>
           )}
           <div className="cstat"><span className="cstat-val">{fmt(numberOfContacts)}</span><span className="cstat-lbl">contacts</span></div>
-          <div className="cstat"><span className="cstat-val" style={{ color: '#00d4aa' }}>{round(openRate)}%</span><span className="cstat-lbl">open rate</span></div>
-          <div className="cstat"><span className="cstat-val" style={{ color: '#f5a623' }}>{fmt(clicksByUser)}</span><span className="cstat-lbl">clicks</span></div>
+          <div className="cstat"><span className="cstat-val" style={{ color: hasMetrics ? '#00d4aa' : 'var(--text-3)' }}>{dash(openRate, '%')}</span><span className="cstat-lbl">open rate</span></div>
+          <div className="cstat"><span className="cstat-val" style={{ color: hasMetrics ? '#f5a623' : 'var(--text-3)' }}>{fmt(clicksByUser)}</span><span className="cstat-lbl">clicks</span></div>
           <div className="cstat">
             <span className="cstat-val" style={{ color: campaignPeriodLeads ? '#a78bfa' : 'var(--text-3)' }}>{fmt(campaignPeriodLeads)}</span>
             <span className="cstat-lbl">period leads</span>
-            <span className="cstat-sub">{fmt(numberOfLeads)} all-time</span>
+            <span className="cstat-sub">{hasMetrics ? fmt(numberOfLeads) + ' all-time' : '\u00A0'}</span>
           </div>
           <div className="cstat">
-            <span className="cstat-val" style={{ color: leadsDead ? 'var(--text-3)' : '#ff9d4d' }} title={leadsDead ? 'No leads recorded — check attribution' : undefined}>
-              {leadsDead ? '—' : convRate + '%'}
+            <span className="cstat-val" style={{ color: (leadsDead || convRate == null) ? 'var(--text-3)' : '#ff9d4d' }} title={leadsDead ? 'No leads recorded — check attribution' : undefined}>
+              {leadsDead ? '—' : (convRate == null ? '—' : convRate + '%')}
             </span>
             <span className="cstat-lbl">conv.</span>
           </div>
@@ -566,8 +635,6 @@ function AttentionStrip({ campaigns, periodLeads, periodLeadsMap }) {
 }
 
 // ─── Custom tooltip for the leads-over-time chart ───────────────────────────────
-// Shows the total for the bucket (day or week) plus a per-campaign breakdown,
-// sorted from biggest contributor to smallest.
 function LeadsBreakdownTooltip({ active, payload, label }) {
   if (!active || !payload || !payload.length) return null;
   const data = payload[0].payload;
@@ -616,7 +683,6 @@ function LeadsBreakdownTooltip({ active, payload, label }) {
 function LeadsChart({ leads, days }) {
   const chartData = useMemo(() => {
     if (!leads.length) return [];
-    // key -> { total, byCampaign: { [campaignName]: count } }
     const map = {};
     leads.forEach(l => {
       const d = new Date(l.day);
@@ -718,10 +784,13 @@ export default function App() {
   const [campaigns,    setCampaigns]    = useState([]);
   const [syncedAt,     setSyncedAt]     = useState(null);
   const [status,       setStatus]       = useState('loading');
+  const [acCampaigns,  setAcCampaigns]  = useState([]);
+  const [acStatus,     setAcStatus]     = useState('loading');
   const [search,       setSearch]       = useState('');
   const [sortBy,       setSortBy]       = useState('date');
   const [filterStatus, setFilterStatus] = useState('live');
   const [category,     setCategory]     = useState('all');
+  const [source,       setSource]       = useState('all');
   const [tier,         setTier]         = useState('all');
   const [onlyLeads,    setOnlyLeads]    = useState(false);
   const [showFilters,  setShowFilters]  = useState(false);
@@ -743,6 +812,19 @@ export default function App() {
     } catch (e) { console.error(e); setStatus('error'); }
   }, []);
 
+  const loadActiveCampaigns = useCallback(async () => {
+    setAcStatus('loading');
+    try {
+      const [rows, templates] = await Promise.all([
+        fetchActiveCampaigns(),
+        fetchActiveCampaignTemplates(),
+      ]);
+      const templateMap = Object.fromEntries(templates.map(t => [t.template_name, t]));
+      setAcCampaigns(normalizeActiveCampaigns(rows, templateMap));
+      setAcStatus('success');
+    } catch (e) { console.error(e); setAcStatus('error'); }
+  }, []);
+
   const loadLeads = useCallback(async (days, from, to) => {
     setLeadsLoading(true);
     try { setPeriodLeads(await fetchLeadsByPeriod(days, from, to)); }
@@ -751,6 +833,7 @@ export default function App() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { loadActiveCampaigns(); }, [loadActiveCampaigns]);
   useEffect(() => { loadLeads(periodDays, customFrom, customTo); }, [loadLeads, periodDays, customFrom, customTo]);
 
   // keep drawer content during slide-out, and wire Esc + scroll lock
@@ -765,6 +848,15 @@ export default function App() {
     return () => { document.body.style.overflow = ''; };
   }, [selected]);
 
+  // Engage CMS campaigns carry their own status (live/paused/draft); AC
+  // campaigns have none, so tag them 'live' here purely so the default
+  // status filter doesn't hide them. This is a display convenience only —
+  // it isn't written back anywhere.
+  const allCampaigns = useMemo(() => {
+    const acWithStatus = acCampaigns.map(c => ({ ...c, status: c.status ?? 'live' }));
+    return [...campaigns, ...acWithStatus];
+  }, [campaigns, acCampaigns]);
+
   const periodLeadsMap = useMemo(() => {
     const map = {};
     periodLeads.forEach(l => { if (l.campaign) map[l.campaign] = (map[l.campaign] || 0) + Number(l.lead_count); });
@@ -772,8 +864,9 @@ export default function App() {
   }, [periodLeads]);
 
   // relative performance colour (top / mid / low / no-signal) per campaign
+  // AC campaigns have no clicks/openRate, so they're scored on period leads only.
   const colorByName = useMemo(() => {
-    const scored = campaigns
+    const scored = allCampaigns
       .map(c => ({ name: c.campaignName, score: (periodLeadsMap[c.campaignName] || 0) * 1e6 + (c.clicksByUser || 0) * 1e3 + (c.openRate || 0) }))
       .sort((a, b) => b.score - a.score);
     const withSignal = scored.filter(s => s.score > 0);
@@ -785,20 +878,27 @@ export default function App() {
       map[s.name] = p < 0.3 ? '#00d4aa' : p < 0.7 ? '#f5a623' : '#ff6b6b';
     });
     return map;
-  }, [campaigns, periodLeadsMap]);
+  }, [allCampaigns, periodLeadsMap]);
 
   const catCounts = useMemo(() => {
-    const m = { all: campaigns.length, reheat: 0, refer: 0, retain: 0, other: 0 };
-    campaigns.forEach(c => { m[categoryOf(c)]++; });
+    const m = { all: allCampaigns.length, reheat: 0, refer: 0, retain: 0, other: 0 };
+    allCampaigns.forEach(c => { m[categoryOf(c)]++; });
     return m;
-  }, [campaigns]);
+  }, [allCampaigns]);
+
+  const sourceCounts = useMemo(() => ({
+    all: allCampaigns.length,
+    engage: campaigns.length,
+    activecampaign: acCampaigns.length,
+  }), [allCampaigns, campaigns, acCampaigns]);
 
   const filtered = useMemo(() => {
-    let list = [...campaigns];
+    let list = [...allCampaigns];
     if (search) {
       const q = search.toLowerCase();
       list = list.filter(c => c.campaignName?.toLowerCase().includes(q) || c.variants?.some(v => v.template?.toLowerCase().includes(q)));
     }
+    if (source !== 'all')       list = list.filter(c => (c.source || 'engage') === source);
     if (category !== 'all')     list = list.filter(c => categoryOf(c) === category);
     if (filterStatus !== 'all') list = list.filter(c => c.status === filterStatus);
     if (tier !== 'all')         list = list.filter(c => tierOf(colorByName[c.campaignName]) === tier);
@@ -810,18 +910,20 @@ export default function App() {
     if (sortBy === 'date')        list.sort((a, b) => new Date(b.dateCreated)   - new Date(a.dateCreated));
     if (sortBy === 'periodleads') list.sort((a, b) => (periodLeadsMap[b.campaignName] || 0) - (periodLeadsMap[a.campaignName] || 0));
     return list;
-  }, [campaigns, search, category, sortBy, filterStatus, tier, onlyLeads, periodLeadsMap, colorByName]);
+  }, [allCampaigns, search, category, source, sortBy, filterStatus, tier, onlyLeads, periodLeadsMap, colorByName]);
 
   const totals = useMemo(() => ({
-    campaigns: campaigns.length,
+    campaigns: allCampaigns.length,
     contacts:  campaigns.reduce((s, c) => s + (c.numberOfContacts || 0), 0),
     leads:     campaigns.reduce((s, c) => s + (c.numberOfLeads    || 0), 0),
     clicks:    campaigns.reduce((s, c) => s + (c.clicksByUser     || 0), 0),
     avgOpen:   campaigns.length ? round(campaigns.reduce((s, c) => s + (c.openRate || 0), 0) / campaigns.length) : 0,
-  }), [campaigns]);
+  }), [campaigns, allCampaigns]);
 
-  const activeFilterCount = (filterStatus !== 'all' ? 1 : 0) + (tier !== 'all' ? 1 : 0) + (onlyLeads ? 1 : 0);
-  const syncDotColor = { loading: '#378ADD', success: '#00d4aa', error: '#ff4d4d' }[status] || '#888';
+  const activeFilterCount = (filterStatus !== 'all' ? 1 : 0) + (tier !== 'all' ? 1 : 0) + (onlyLeads ? 1 : 0) + (source !== 'all' ? 1 : 0);
+  const isLoading = status === 'loading' || acStatus === 'loading';
+  const combinedStatus = (status === 'error' || acStatus === 'error') ? 'error' : isLoading ? 'loading' : 'success';
+  const syncDotColor = { loading: '#378ADD', success: '#00d4aa', error: '#ff4d4d' }[combinedStatus] || '#888';
   const drawerCat = displayCampaign ? CAT_META[categoryOf(displayCampaign)] : null;
 
   return (
@@ -832,17 +934,17 @@ export default function App() {
           <div className="logo-mark" />
           <div>
             <h1 className="app-title">Campaign Intelligence</h1>
-            <p className="app-sub">Engage CMS · synced to Supabase · refreshes hourly</p>
+            <p className="app-sub">Engage CMS + ActiveCampaign · synced to Supabase · refreshes hourly</p>
           </div>
         </div>
         <div className="header-right">
-          <div className={`sync-pill ${status}`}>
+          <div className={`sync-pill ${combinedStatus}`}>
             <span className="sync-dot" style={{ background: syncDotColor }} />
-            {status === 'loading' && 'Syncing…'}
-            {status === 'success' && `Synced · ${fmtDate(syncedAt)}`}
-            {status === 'error'   && 'Sync failed'}
+            {combinedStatus === 'loading' && 'Syncing…'}
+            {combinedStatus === 'success' && `Synced · ${fmtDate(syncedAt)}`}
+            {combinedStatus === 'error'   && 'Sync failed'}
           </div>
-          <button className="refresh-btn" onClick={load} disabled={status === 'loading'}>
+          <button className="refresh-btn" onClick={() => { load(); loadActiveCampaigns(); }} disabled={isLoading}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
             </svg>
@@ -854,11 +956,11 @@ export default function App() {
       {/* ── KPI strip ── */}
       <div className="kpi-strip">
         {[
-          { label: 'Campaigns',      value: totals.campaigns,             accent: 'var(--text-1)' },
+          { label: 'Campaigns',      value: totals.campaigns,             accent: 'var(--text-1)', sub: `${sourceCounts.engage} Engage · ${sourceCounts.activecampaign} AC` },
           { label: 'Total contacts', value: fmt(totals.contacts),         accent: '#4d9fff' },
           { label: 'Avg open rate',  value: totals.avgOpen + '%',         accent: '#00d4aa' },
           { label: 'Total clicks',   value: fmt(totals.clicks),           accent: '#f5a623' },
-          { label: 'Leads', value: leadsLoading ? '…' : fmt(periodLeads.reduce((s, l) => s + Number(l.lead_count), 0)), accent: '#a78bfa', sub: fmt(totals.leads) + ' all-time' },
+          { label: 'Leads', value: leadsLoading ? '…' : fmt(periodLeads.reduce((s, l) => s + Number(l.lead_count), 0)), accent: '#a78bfa', sub: fmt(totals.leads) + ' all-time (Engage)' },
           { label: 'Conv. rate',     value: totals.contacts ? ((totals.leads / totals.contacts) * 100).toFixed(2) + '%' : '—', accent: '#ff9d4d' },
         ].map(k => (
           <div key={k.label} className="kpi-card">
@@ -870,7 +972,22 @@ export default function App() {
       </div>
 
       {/* ── Attention strip ── */}
-      {status === 'success' && <AttentionStrip campaigns={campaigns} periodLeads={periodLeads} periodLeadsMap={periodLeadsMap} />}
+      {combinedStatus === 'success' && <AttentionStrip campaigns={allCampaigns} periodLeads={periodLeads} periodLeadsMap={periodLeadsMap} />}
+
+      {/* ── Source segmentation (Engage CMS / ActiveCampaign) ── */}
+      <div className="cat-bar">
+        {SOURCES.map(s => (
+          <button
+            key={s.key}
+            className={`cat-pill ${source === s.key ? 'active' : ''}`}
+            style={source === s.key ? { '--cat-color': '#4d9fff' } : undefined}
+            onClick={() => setSource(s.key)}
+          >
+            {s.label}
+            <span className="cat-count">{sourceCounts[s.key] ?? 0}</span>
+          </button>
+        ))}
+      </div>
 
       {/* ── Category segmentation (Reheat / Refer / Retain) ── */}
       <div className="cat-bar">
@@ -922,7 +1039,7 @@ export default function App() {
           <button className={`sort-btn ${showOverview ? 'active' : ''}`} onClick={() => setShowOverview(s => !s)}>
             {showOverview ? '▾ Hide overview' : '▸ Show overview'}
           </button>
-          <span className="results-count">{filtered.length} / {campaigns.length}</span>
+          <span className="results-count">{filtered.length} / {allCampaigns.length}</span>
         </div>
       </div>
 
@@ -952,7 +1069,7 @@ export default function App() {
               {onlyLeads ? '☑' : '☐'} Has leads this period
             </button>
             {(activeFilterCount > 0 || category !== 'all') && (
-              <button className="sort-btn" onClick={() => { setFilterStatus('all'); setTier('all'); setOnlyLeads(false); setCategory('all'); }}>Reset all</button>
+              <button className="sort-btn" onClick={() => { setFilterStatus('all'); setTier('all'); setOnlyLeads(false); setCategory('all'); setSource('all'); }}>Reset all</button>
             )}
           </div>
         </div>
@@ -968,17 +1085,17 @@ export default function App() {
 
       {/* ── Campaign list ── */}
       <div className="campaign-list">
-        {status === 'loading' && campaigns.length === 0 && (
+        {combinedStatus === 'loading' && allCampaigns.length === 0 && (
           <div className="state-screen"><div className="spinner" /><span>Loading campaigns from Supabase…</span></div>
         )}
-        {status === 'error' && (
+        {combinedStatus === 'error' && allCampaigns.length === 0 && (
           <div className="state-screen error">
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
             <span>Could not load data from Supabase.</span>
-            <button className="refresh-btn" onClick={load}>Try again</button>
+            <button className="refresh-btn" onClick={() => { load(); loadActiveCampaigns(); }}>Try again</button>
           </div>
         )}
-        {status === 'success' && filtered.length === 0 && (
+        {combinedStatus !== 'loading' && filtered.length === 0 && allCampaigns.length > 0 && (
           <div className="state-screen"><span>No campaigns match your filters.</span></div>
         )}
         {filtered.map((c, i) => (
@@ -1004,6 +1121,7 @@ export default function App() {
               <div className="drawer-head-text">
                 <div className="drawer-title">
                   {drawerCat && <span className="cat-badge" style={{ color: drawerCat.color, borderColor: drawerCat.color }}>{drawerCat.label}</span>}
+                  <SourceBadge source={displayCampaign.source} />
                   {displayCampaign.campaignName}
                   {displayCampaign.status && (
                     <span className={`status-badge status-${displayCampaign.status}`}>
