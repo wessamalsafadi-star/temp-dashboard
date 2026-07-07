@@ -6,7 +6,7 @@ import "./App.css";
    shared: [{ generatedAt, dateRange, count, leads: [...] }].
    The app calls it on mount and then every hour.
    ═══════════════════════════════════════════════════════════════════════════ */
-const WEBHOOK_URL = "https://YOUR-N8N-HOST/webhook/lead-dashboard";
+const WEBHOOK_URL = "https://engageteam.app.n8n.cloud/webhook/Deal Dashboard";
 const POLL_MS = 60 * 60 * 1000; // hourly
 
 /* ── helpers ─────────────────────────────────────────────────────────────── */
