@@ -247,7 +247,6 @@ export default function LeadDashboard() {
     fetchData();
     timerRef.current = setInterval(fetchData, POLL_MS); // hourly
     return () => clearInterval(timerRef.current);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const leads = useMemo(() => (rawLeads ? rawLeads.map(normalizeLead) : []), [rawLeads]);
