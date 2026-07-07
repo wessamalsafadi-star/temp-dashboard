@@ -210,7 +210,7 @@ function LeadRow({ lead, open, onToggle }) {
 }
 
 /* ── app ─────────────────────────────────────────────────────────────────── */
-export default function App() {
+export default function LeadDashboard() {
   const [rawLeads, setRawLeads] = useState(null);
   const [meta, setMeta] = useState(null);
   const [status, setStatus] = useState("loading"); // loading | success | error
