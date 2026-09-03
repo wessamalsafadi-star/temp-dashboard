@@ -72,6 +72,9 @@ function interpolate(text) {
     .replace(/\{\{[^}]+\}\}/g, '…');
 }
 
+// A template is a carousel if its CMS record carries carouselCards.
+const isCarouselCms = (cms) => Array.isArray(cms?.carouselCards) && cms.carouselCards.length > 0;
+
 const PERIODS = [
   { label: 'Last 7 days',   days: 7   },
   { label: 'Last month',    days: 30  },
@@ -104,6 +107,9 @@ function normalizeActiveCampaigns(rows, templateMap) {
           header: cms.header,
           body: cms.body,
           buttons: cms.buttons || [],
+          // If the AC template cache ever carries carousel cards, pass them
+          // through so the preview renders them. Falls back to [] (standard).
+          carouselCards: cms.carouselCards || cms.carousel_cards || [],
         } : null,
       };
     });
@@ -155,7 +161,37 @@ function SourceBadge({ source }) {
   return <span className="tag tag-mono source-badge">AC</span>;
 }
 
+// ─── WA carousel card ─────────────────────────────────────────────────────────
+function WaCarouselCard({ card }) {
+  const lines = interpolate(card.body || '').split('\n');
+  return (
+    <div className="wa-card">
+      {card.header && card.headerType === 'IMAGE' && (
+        <img src={card.header} alt="" className="wa-card-img"
+          onError={e => { e.currentTarget.style.display = 'none'; }} />
+      )}
+      {card.header && card.headerType === 'VIDEO' && (
+        <video src={card.header} preload="metadata" playsInline className="wa-card-img"
+          onError={e => { e.currentTarget.style.display = 'none'; }} />
+      )}
+      <div className="wa-card-body">
+        {lines.map((l, i) => <span key={i}>{l}{i < lines.length - 1 ? '\n' : ''}</span>)}
+      </div>
+      {card.buttons?.length > 0 && (
+        <div className="wa-buttons">
+          {card.buttons.map((b, i) => (
+            <div key={i} className="wa-btn">{b.content}</div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── WA phone preview ─────────────────────────────────────────────────────────
+// Renders a standard template (header + body + buttons) or, when the CMS
+// record carries carouselCards, the WhatsApp carousel layout: the message
+// bubble first, then a horizontally scrollable strip of cards beneath it.
 function WhatsAppPreview({ cms }) {
   if (!cms) return (
     <div className="wa-empty">
@@ -166,7 +202,8 @@ function WhatsAppPreview({ cms }) {
     </div>
   );
 
-  const { header, headerType, body, buttons = [] } = cms;
+  const { header, headerType, body, buttons = [], carouselCards = [] } = cms;
+  const isCarousel = isCarouselCms(cms);
   const lines = interpolate(body || '').split('\n');
 
   return (
@@ -183,6 +220,8 @@ function WhatsAppPreview({ cms }) {
       </div>
       <div className="wa-chat">
         <div className="wa-day-label">Today</div>
+
+        {/* Main message bubble */}
         <div className="wa-bubble-wrap">
           <div className="wa-bubble">
             {header && headerType === 'IMAGE' && (
@@ -203,7 +242,7 @@ function WhatsAppPreview({ cms }) {
                 <path d="M6 5l3 3 5-7" stroke="#53bdeb" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
             </div>
-            {buttons.length > 0 && (
+            {!isCarousel && buttons.length > 0 && (
               <div className="wa-buttons">
                 {buttons.map((b, i) => (
                   <div key={i} className="wa-btn">{b.content}</div>
@@ -212,6 +251,13 @@ function WhatsAppPreview({ cms }) {
             )}
           </div>
         </div>
+
+        {/* Carousel strip */}
+        {isCarousel && (
+          <div className="wa-carousel">
+            {carouselCards.map((card, i) => <WaCarouselCard key={i} card={card} />)}
+          </div>
+        )}
       </div>
       <div className="wa-input-bar">
         <div className="wa-input-fake">Message</div>
@@ -290,6 +336,7 @@ function VariantDetail({ variant, accentColor, onClose }) {
   const { name, template, metrics = {}, cms } = variant;
   const { numberOfContacts: sent, openRate, clicksByUser: clicks, numberOfLeads: leads } = metrics;
   const hasMetrics = sent != null;
+  const isCarousel = isCarouselCms(cms);
 
   const openCount = hasMetrics ? Math.round(((openRate || 0) / 100) * sent) : null;
   const health    = hasMetrics ? healthScore({ contacts: sent, openRate, clicks, leads }) : null;
@@ -325,10 +372,12 @@ function VariantDetail({ variant, accentColor, onClose }) {
                 </div>
               )}
               <div className="vd-meta-block">
-                <div className="vd-meta-label">Header type</div>
-                <span className="tag tag-blue">{cms?.headerType || 'TEXT'}</span>
+                <div className="vd-meta-label">Template type</div>
+                <span className="tag tag-blue">
+                  {isCarousel ? `CAROUSEL · ${cms.carouselCards.length} cards` : (cms?.headerType || 'TEXT')}
+                </span>
               </div>
-              {cms?.header && (
+              {cms?.header && !isCarousel && (
                 <div className="vd-meta-block">
                   <div className="vd-meta-label">Header media</div>
                   {cms.headerType === 'IMAGE' && (
@@ -360,6 +409,31 @@ function VariantDetail({ variant, accentColor, onClose }) {
                       )}
                     </div>
                   ))}
+                </div>
+              )}
+              {isCarousel && (
+                <div className="vd-meta-block">
+                  <div className="vd-meta-label">Carousel cards ({cms.carouselCards.length})</div>
+                  {cms.carouselCards.map((card, i) => {
+                    const btn = card.buttons?.[0];
+                    return (
+                      <div key={i} className="vd-button-card">
+                        <div className="vd-button-content">
+                          Card {i + 1}{btn?.content ? ` · ${btn.content}` : ''}
+                        </div>
+                        {btn?.replyText && <div className="vd-button-reply">Reply: "{btn.replyText}"</div>}
+                        {btn?.actions?.length > 0 && (
+                          <div className="vd-button-actions">
+                            {btn.actions.map((a, j) => (
+                              <span key={j} className="tag tag-gray">
+                                {a.type}{a.data?.labelName ? ` · ${a.data.labelName}` : ''}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
               <div className="vd-quick-stats">
@@ -480,6 +554,11 @@ function CampaignDetail({ campaign, periodLeadsRaw, periodLeadsMap, accent }) {
                     <div className="vc-name">{v.name}{isWinner && <span className="winner-badge">WIN</span>}</div>
                     <span className="tag tag-mono">{v.template}</span>
                   </div>
+                  {isCarouselCms(v.cms) && (
+                    <div className="vc-type-row">
+                      <span className="tag tag-blue">CAROUSEL · {v.cms.carouselCards.length} cards</span>
+                    </div>
+                  )}
                   <div className="vc-pct-bar"><div className="vc-pct-fill" style={{ width: `${v.percentage || 0}%` }} /></div>
                   <div className="vc-pct-label">{v.percentage != null ? `${v.percentage}% of audience` : 'split unknown'}</div>
                   <div className="vc-metrics">
